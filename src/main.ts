@@ -17,17 +17,6 @@ export default function (context) {
 	let premiumThemeInfo = {};
 	let premiumThemeSelections = [];
 
-	ipcMain.on('what-day',  () => {
-		LocalMain.sendIPCEvent('is-day', LocalMain.UserData.get('weeks'))
-	});
-
-	ipcMain.on('set-day',  (event, week, day) => {
-		let weeks = LocalMain.UserData.get('weeks');
-		weeks[week] = day;
-		LocalMain.UserData.set('weeks', weeks);
-		LocalMain.sendIPCEvent('is-day', LocalMain.UserData.get('weeks'))
-	});
-
 	ipcMain.on('set-options', async (event, options, siteId) => {
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
 		for (var option in options) {
