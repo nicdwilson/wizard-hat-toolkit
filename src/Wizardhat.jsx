@@ -1,6 +1,5 @@
 import React from "react";
 import { ipcRenderer } from "electron";
-import Troubleshooting from "./troubleshooting-excercise";
 import Jurassictube from "./Jurassictube";
 import PluginManagement from "./PluginManagement";
 
@@ -48,7 +47,6 @@ export default class Wizardhat extends React.Component {
 		this.handlePluginSelectionChange =
 			this.handlePluginSelectionChange.bind(this);
 		this.installPlugins = this.installPlugins.bind(this);
-		this.troubleshootingContent = this.troubleshootingContent.bind(this);
 		this.jurassicTube = this.jurassicTube.bind(this);
 		this.pluginManagementContent = this.pluginManagementContent.bind(this);
 	}
@@ -123,13 +121,6 @@ export default class Wizardhat extends React.Component {
 				showSpinner: false,
 			});
 		});
-
-		ipcRenderer.on(
-			"install-troubleshooting-plugins",
-			(event, pluginsToInstall) => {
-				this.installAndActivatePlugins(pluginsToInstall);
-			}
-		);
 
 		ipcRenderer.send("validate-token");
 
@@ -491,10 +482,6 @@ export default class Wizardhat extends React.Component {
 	pluginManagementContent() {
 		return new PluginManagement(this.props);
 	}
-		
-	troubleshootingContent() {
-		return new Troubleshooting(this.props);
-	}
 
 	jurassicTube() {
 		return new Jurassictube(this.props);
@@ -539,16 +526,6 @@ export default class Wizardhat extends React.Component {
 							>
 							Tools
 							</TertiaryNavItem>*/}
-							<Divider />
-							<TertiaryNavItem path="/title">
-								<Title>Troubleshooting</Title>
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/excercises"
-								component={this.troubleshootingContent}
-							>
-								Email
-							</TertiaryNavItem>
 						</TertiaryNav>
 					</div>
 				</div>
