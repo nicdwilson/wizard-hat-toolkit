@@ -1,12 +1,5 @@
 import React from "react";
 import { ipcRenderer } from "electron";
-import Troubleshooting from "./troubleshooting-excercise";
-import WeekTwo from "./WeekTwo"
-import WeekThree from "./WeekThree";
-import WeekFour from "./WeekFour";
-import WeekFive from "./WeekFive";
-import WeekSix from "./WeekSix";
-import WeekSeven from "./WeekSeven";
 import Jurassictube from "./Jurassictube";
 import PluginManagement from "./PluginManagement";
 
@@ -54,13 +47,6 @@ export default class Wizardhat extends React.Component {
 		this.handlePluginSelectionChange =
 			this.handlePluginSelectionChange.bind(this);
 		this.installPlugins = this.installPlugins.bind(this);
-		this.troubleshootingContent = this.troubleshootingContent.bind(this);
-		this.weekTwoContent = this.weekTwoContent.bind(this);
-		this.weekThreeContent = this.weekThreeContent.bind(this);
-		this.weekFourContent = this.weekFourContent.bind(this);
-		this.weekFiveContent = this.weekFiveContent.bind(this);
-		this.weekSixContent = this.weekSixContent.bind(this);
-		this.weekSevenContent = this.weekSevenContent.bind(this);
 		this.jurassicTube = this.jurassicTube.bind(this);
 		this.pluginManagementContent = this.pluginManagementContent.bind(this);
 	}
@@ -135,13 +121,6 @@ export default class Wizardhat extends React.Component {
 				showSpinner: false,
 			});
 		});
-
-		ipcRenderer.on(
-			"install-troubleshooting-plugins",
-			(event, pluginsToInstall) => {
-				this.installAndActivatePlugins(pluginsToInstall);
-			}
-		);
 
 		ipcRenderer.send("validate-token");
 
@@ -503,34 +482,6 @@ export default class Wizardhat extends React.Component {
 	pluginManagementContent() {
 		return new PluginManagement(this.props);
 	}
-		
-	troubleshootingContent() {
-		return new Troubleshooting(this.props);
-	}
-
-	weekTwoContent() {
-		return new WeekTwo(this.props);
-	}
-
-	weekThreeContent() {
-		return new WeekThree(this.props);
-	}
-
-	weekFourContent() {
-		return new WeekFour(this.props);
-	}
-
-	weekFiveContent() {
-		return new WeekFive(this.props);
-	}
-
-	weekSixContent() {
-		return new WeekSix(this.props);
-	}
-
-	weekSevenContent() {
-		return new WeekSeven(this.props);
-	}
 
 	jurassicTube() {
 		return new Jurassictube(this.props);
@@ -547,47 +498,6 @@ export default class Wizardhat extends React.Component {
 					{this.renderError()}
 					<div id="wootertiarynav">
 						<TertiaryNav>
-							<TertiaryNavItem path="/title">
-								<Title>Onboarding Content</Title>
-							</TertiaryNavItem>
-
-							<TertiaryNavItem
-								path="/week2"
-								component={this.weekTwoContent}
-							>
-								Week 2
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/week3"
-								component={this.weekThreeContent}
-							>
-								Week 3
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/week4"
-								component={this.weekFourContent}
-							>
-								Week 4
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/week5"
-								component={this.weekFiveContent}
-							>
-								Week 5
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/week6"
-								component={this.weekSixContent}
-							>
-								Week 6
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/week7"
-								component={this.weekSevenContent}
-							>
-								Week 7
-							</TertiaryNavItem>
-							<Divider />
 							<TertiaryNavItem path="/title">
 								<Title>Utilities</Title>
 							</TertiaryNavItem>
@@ -616,16 +526,6 @@ export default class Wizardhat extends React.Component {
 							>
 							Tools
 							</TertiaryNavItem>*/}
-							<Divider />
-							<TertiaryNavItem path="/title">
-								<Title>Troubleshooting</Title>
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/excercises"
-								component={this.troubleshootingContent}
-							>
-								Email
-							</TertiaryNavItem>
 						</TertiaryNav>
 					</div>
 				</div>

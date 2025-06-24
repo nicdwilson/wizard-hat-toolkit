@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import { ipcRenderer } from "electron";
 //import Select from "react-select";
-//import Troubleshooting from "./troubleshooting-excercise";
 //const { exec } = require("child_process");
 // https://getflywheel.github.io/local-addon-api/modules/_local_renderer_.html
 import * as LocalRenderer from '@getflywheel/local/renderer';
@@ -112,11 +111,6 @@ export default class Wizardhat extends Component {
 			});
 		});
 		
-		ipcRenderer.on("install-troubleshooting-plugins", (event, pluginsToInstall) => {
-			console.log(`got plugins to install of ${pluginsToInstall}`)
-			this.installAndActivatePlugins(pluginsToInstall);
-		});
-
 		ipcRenderer.send("validate-token");
 	}
 
@@ -322,34 +316,14 @@ export default class Wizardhat extends Component {
 		this.setState({
 			showSpinner: true,
 		});
+		this.setState({
+			installingPlugins: true,
+		});
 		ipcRenderer.send(
 			"install-plugins",
 			pluginsToInstall,
 			this.state.siteId
 		);
-	}
-
-	troubleshootingStep(scenario, step) {
-		console.log(scenario);
-		console.log(step);
-	}
-	activateTroubleshootingStep(scenario, step) {
-		console.log(scenario);
-		console.log(step);
-	}
-
-	stepIsActive(scenario) {
-		console.info(scenario);
-		return false;
-	}
-
-	setUpScenario(scenario) {
-		switch (scenario) {
-			case "email":
-				return scenario;
-			default:
-				return null;
-		}
 	}
 
 	installWoocommerce() {
@@ -1139,10 +1113,6 @@ export default class Wizardhat extends Component {
 					</Card>*/}
 		</div>
 	);
-
-	troubleshootingContent() {
-		return new Troubleshooting();		
-	}
 
 	render() {
 		return( <div>hello world<p>Hello button</p></div>);
