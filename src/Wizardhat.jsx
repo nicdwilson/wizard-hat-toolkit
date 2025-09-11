@@ -2,6 +2,7 @@ import React from "react";
 import { ipcRenderer } from "electron";
 import Jurassictube from "./Jurassictube";
 import PluginManagement from "./PluginManagement";
+import PluginUpdates from "./PluginUpdates";
 
 const { exec } = require("child_process");
 // https://github.com/getflywheel/local-components
@@ -49,6 +50,7 @@ export default class Wizardhat extends React.Component {
 		this.installPlugins = this.installPlugins.bind(this);
 		this.jurassicTube = this.jurassicTube.bind(this);
 		this.pluginManagementContent = this.pluginManagementContent.bind(this);
+		this.pluginUpdatesContent = this.pluginUpdatesContent.bind(this);
 	}
 
 	componentDidMount() {
@@ -483,6 +485,10 @@ export default class Wizardhat extends React.Component {
 		return new PluginManagement(this.props);
 	}
 
+	pluginUpdatesContent() {
+		return new PluginUpdates(this.props);
+	}
+
 	jurassicTube() {
 		return new Jurassictube(this.props);
 	}
@@ -518,6 +524,12 @@ export default class Wizardhat extends React.Component {
 								component={this.pluginManagementContent}
 							>
 								Plugin Management
+							</TertiaryNavItem>
+							<TertiaryNavItem
+								path="/plugin-updates"
+								component={this.pluginUpdatesContent}
+							>
+								Plugin Updates
 							</TertiaryNavItem>
 
 							{/*<TertiaryNavItem

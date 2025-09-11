@@ -12,21 +12,19 @@ export default function ( context ) {
 	//insert our stylesheet
 	hooks.addContent('stylesheets', () => <link rel="stylesheet" key="notes-addon-styleesheet" href={stylesheetPath} />);
 
-	// Create the route/page of content that will be displayed when the menu option is clicked
-	hooks.addContent( 'routesSiteInfo', () =>
-		<Route key={`${addonID}-addon`} path={`/main/site-info/:siteID/${addonID}`}
-			render={( props ) => <Wizardhat {...props} />} /> );
+	hooks.addContent('routesSiteInfo', () =>
+		<Route key="woocommerce-addon-tab" path="/main/site-info/:siteID/woocommerce" render={props => <Wizardhat {...props} />} />
+	);
 
-	// Add menu option within the site menu bar
-	hooks.addFilter( 'siteInfoMoreMenu', function ( menu, site ) {
-		menu.push( {
-			label : `${addonName}`,
-			enabled : true,
-			click : () => {
-				context.events.send( 'goToRoute', `/main/site-info/${site.id}/${addonID}` );
+	// Add WooCommerce to the More menu
+	hooks.addFilter('siteInfoMoreMenu', function(menu, site) {
+		menu.push({
+			label: 'WooCommerce',
+			enabled: true,
+			click: () => {
+				context.events.send('goToRoute', `/main/site-info/${site.id}/woocommerce`);
 			}
-		} );
-
+		});
 		return menu;
-	} );
+	});
 }

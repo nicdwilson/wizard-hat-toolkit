@@ -4,6 +4,12 @@ import * as LocalMain from '@getflywheel/local/main';
 //LocalMain.UserData.remove('ghToken');
 process.env.GITHUB_TOKEN = LocalMain.UserData.get('ghToken');
 var validToken = false;
+
+// Import plugin update modules
+import { PluginDetector } from './modules/plugin-updater/PluginDetector';
+import { UpdateChecker } from './modules/plugin-updater/UpdateChecker';
+import { PluginUpdater } from './modules/plugin-updater/PluginUpdater';
+import { UpdateSettingsManager } from './modules/plugin-updater/UpdateSettings';
 export default function (context) {
 	const { electron } = context;
 	const { ipcMain } = electron;
@@ -82,6 +88,135 @@ export default function (context) {
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
 		installPlugins(pluginsToInstall, site);
 	});
+
+	// Plugin Update Handlers
+	ipcMain.on('check-plugin-updates', async (event, siteId) => {
+		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
+		
+		try {
+			const detector = new PluginDetector(premiumPluginSelections);
+			const checker = new UpdateChecker();
+			const updater = new PluginUpdater(context, premiumPluginSelections);
+			
+			// Detect marketplace plugins
+			const marketplacePlugins = await detector.detectMarketplacePlugins(site);
+			
+			if (marketplacePlugins.length > 0) {
+				// Check for updates
+				const availableUpdates = await checker.checkForUpdates(site, marketplacePlugins);
+				
+				if (availableUpdates.length > 0) {
+					// Update plugins if auto-update is enabled
+					if (UpdateSettingsManager.isAutoUpdateEnabled()) {
+						await updater.updatePlugins(site, availableUpdates);
+						
+						LocalMain.sendIPCEvent('plugins-updated', {
+							siteId,
+							updatedCount: availableUpdates.length,
+							plugins: availableUpdates.map(u => u.plugin.name)
+						});
+						return; // Exit early after successful updates
+					} else {
+						// Just notify about available updates
+						LocalMain.sendIPCEvent('updates-available', {
+							siteId,
+							availableCount: availableUpdates.length,
+							plugins: availableUpdates.map(u => u.plugin.name)
+						});
+						return; // Exit early after notifying about available updates
+					}
+				} else {
+					// No updates available
+					LocalMain.sendIPCEvent('no-updates-available', {
+						siteId,
+						pluginCount: marketplacePlugins.length
+					});
+				}
+			} else {
+				// No marketplace plugins found
+				LocalMain.sendIPCEvent('no-marketplace-plugins', {
+					siteId
+				});
+			}
+			
+			// Update last check time
+			UpdateSettingsManager.setLastUpdateCheck(new Date());
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
+			LocalMain.sendIPCEvent('update-error', { siteId, error: error.message });
+		}
+	});
+
+	ipcMain.on('update-plugin-settings', async (event, settings) => {
+		UpdateSettingsManager.updateSettings(settings);
+		LocalMain.sendIPCEvent('settings-updated');
+	});
+
+	ipcMain.on('get-plugin-settings', () => {
+		const settings = UpdateSettingsManager.getSettings();
+		LocalMain.sendIPCEvent('plugin-settings', settings);
+	});
+
+	ipcMain.on('apply-plugin-updates', async (event, siteId) => {
+		console.log('[Main] apply-plugin-updates IPC event received for site:', siteId);
+		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
+		
+		try {
+			console.log('[Main] Creating detector, checker, and updater instances');
+			const detector = new PluginDetector(premiumPluginSelections);
+			const checker = new UpdateChecker();
+			const updater = new PluginUpdater(context, premiumPluginSelections);
+			
+			// Detect marketplace plugins
+			console.log('[Main] Detecting marketplace plugins...');
+			const marketplacePlugins = await detector.detectMarketplacePlugins(site);
+			console.log('[Main] Found marketplace plugins:', marketplacePlugins.length);
+			
+			if (marketplacePlugins.length > 0) {
+				// Check for updates
+				console.log('[Main] Checking for updates...');
+				const availableUpdates = await checker.checkForUpdates(site, marketplacePlugins);
+				console.log('[Main] Available updates:', availableUpdates.length);
+				
+				if (availableUpdates.length > 0) {
+					// Apply updates
+					console.log('[Main] Applying updates...');
+					await updater.updatePlugins(site, availableUpdates);
+					console.log('[Main] Updates completed, sending success event');
+					
+					LocalMain.sendIPCEvent('plugins-updated', {
+						siteId,
+						updatedCount: availableUpdates.length,
+						plugins: availableUpdates.map(u => u.plugin.name)
+					});
+				} else {
+					// No updates available
+					console.log('[Main] No updates available, sending no-updates event');
+					LocalMain.sendIPCEvent('no-updates-available', {
+						siteId,
+						pluginCount: marketplacePlugins.length
+					});
+				}
+			} else {
+				// No marketplace plugins found
+				console.log('[Main] No marketplace plugins found, sending no-plugins event');
+				LocalMain.sendIPCEvent('no-marketplace-plugins', {
+					siteId
+				});
+			}
+			
+			// Update last check time
+			UpdateSettingsManager.setLastUpdateCheck(new Date());
+		} catch (error) {
+			console.error('[Main] Error in apply-plugin-updates:', error);
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
+			LocalMain.sendIPCEvent('update-error', { siteId, error: error.message });
+		}
+	});
+
+	// Hook into site startup to check for plugin updates
+	// Note: Using a different approach since siteData.on is not available
+	// We'll check for updates when the plugin update tab is accessed instead
 
 	ipcMain.on("install-themes", async (event, themesToInstall, siteId) => {
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
@@ -380,6 +515,8 @@ export default function (context) {
 			const isPremium = obj => obj.label === slug;
 			if (premiumPluginSelections.some(isPremium)) {
 				premiumPlugins.push(slug);
+				// Track installed marketplace plugin
+				PluginDetector.trackInstalledPlugin(slug);
 			} else {
 				dotOrgPlugins.push(slug);
 			}
