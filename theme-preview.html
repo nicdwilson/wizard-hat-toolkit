@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Woo Happy Studio Theme Preview</title>
+    <link rel="stylesheet" href="woo-happy-localwp-theme.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .preview-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .preview-section {
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .preview-section:last-child {
+            border-bottom: none;
+        }
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--woo-blueberry);
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .nav-preview {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .nav-item {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .nav-item:hover {
+            background-color: var(--woo-blueberry-5);
+            color: var(--woo-blueberry);
+        }
+        .nav-item.active {
+            background-color: var(--woo-blueberry-5);
+            color: var(--woo-blueberry);
+            font-weight: 600;
+        }
+        .card-preview {
+            border: 1px solid var(--woo-gray-5);
+            border-radius: 8px;
+            padding: 20px;
+            background: white;
+        }
+        .dark-mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--woo-blueberry);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--woo-font-family);
+        }
+    </style>
+</head>
+<body>
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()">🌙 Toggle Dark Mode</button>
+    
+    <div class="preview-container">
+        <h1>Woo Happy Studio Theme Preview</h1>
+        <p>This preview shows how the Woo Happy Studio theme will look when applied to LocalWP. All styling uses CSS custom properties and will work seamlessly with LocalWP's existing components.</p>
+        
+        <!-- Buttons Section -->
+        <div class="preview-section">
+            <h2 class="section-title">Buttons</h2>
+            <div class="button-group">
+                <button class="woo.button">Primary Button</button>
+                <button class="components-button is-primary">Components Primary</button>
+                <button class="components-button is-secondary">Secondary Button</button>
+                <button class="woo.button" disabled>Disabled Button</button>
+            </div>
+        </div>
+        
+        <!-- Form Controls Section -->
+        <div class="preview-section">
+            <h2 class="section-title">Form Controls</h2>
+            <div class="form-group">
+                <label for="text-input">Text Input</label>
+                <input type="text" id="text-input" placeholder="Enter some text..." class="components-text-control__input">
+            </div>
+            <div class="form-group">
+                <label for="email-input">Email Input</label>
+                <input type="email" id="email-input" placeholder="your@email.com" class="components-text-control__input">
+            </div>
+            <div class="form-group">
+                <label for="password-input">Password Input</label>
+                <input type="password" id="password-input" placeholder="Enter password..." class="PasswordToggleInput">
+            </div>
+            <div class="form-group">
+                <label for="textarea-input">Textarea</label>
+                <textarea id="textarea-input" placeholder="Enter a longer message..." rows="4"></textarea>
+            </div>
+        </div>
+        
+        <!-- Navigation Section -->
+        <div class="preview-section">
+            <h2 class="section-title">Navigation</h2>
+            <div class="nav-preview">
+                <div class="nav-item active">Active Tab</div>
+                <div class="nav-item">Inactive Tab</div>
+                <div class="nav-item">Another Tab</div>
+            </div>
+            <div id="wootertiarynav">
+                <ul>
+                    <li class="TertiaryNavItem active">Active Tertiary Nav</li>
+                    <li class="TertiaryNavItem">Inactive Tertiary Nav</li>
+                    <li class="TertiaryNavItem">Another Tertiary Nav</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Typography Section -->
+        <div class="preview-section">
+            <h2 class="section-title">Typography</h2>
+            <h1>Heading 1 - Title Large</h1>
+            <h2>Heading 2 - Title Medium</h2>
+            <h3>Heading 3 - Title Small</h3>
+            <h4>Heading 4 - Subtitle</h4>
+            <p>This is a paragraph with body text. It demonstrates the Inter font family and proper line height for optimal readability. The text should be easy to read and well-spaced.</p>
+            <ul class="wizard-hat">
+                <li>List item 1</li>
+                <li>List item 2</li>
+                <li>List item 3</li>
+            </ul>
+        </div>
+        
+        <!-- Cards Section -->
+        <div class="preview-section">
+            <h2 class="section-title">Cards & Modals</h2>
+            <div class="card-preview">
+                <h3>Card Title</h3>
+                <p>This is a card component with rounded corners and proper spacing. It demonstrates the card styling that will be applied to LocalWP's modal and card components.</p>
+                <button class="woo.button">Action Button</button>
+            </div>
+        </div>
+        
+        <!-- Utility Classes Section -->
+        <div class="preview-section">
+            <h2 class="section-title">Utility Classes</h2>
+            <p class="text-woo-blueberry">This text uses the blueberry color utility class.</p>
+            <p class="text-woo-gray-700">This text uses the gray-700 color utility class.</p>
+            <div class="bg-woo-blueberry-5" style="padding: 15px; border-radius: 4px;">
+                <p>This div uses the blueberry-5 background utility class.</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('Theme__Dark');
+            const button = document.querySelector('.dark-mode-toggle');
+            button.textContent = document.documentElement.classList.contains('Theme__Dark') ? '☀️ Light Mode' : '🌙 Dark Mode';
+        }
+        
+        // Add hover effects to nav items
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+        
+        // Add hover effects to tertiary nav items
+        document.querySelectorAll('.TertiaryNavItem').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.TertiaryNavItem').forEach(nav => nav.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

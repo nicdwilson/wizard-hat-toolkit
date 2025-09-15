@@ -1,9 +1,42 @@
+/* Woo Happy Studio Color Palette */
+:root {
+    --woo-blueberry: #3858E9;
+    --woo-blueberry-70: #1d35b4;
+    --woo-gray-5: #DCDCDE;
+    --woo-gray-700: #757575;
+    --woo-white: #ffffff;
+    --woo-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
 .woo.button {
-    background-color: #96588a;
-    color: #fff;
-    border-color: #3c3c3c;
+    background-color: var(--woo-blueberry);
+    color: var(--woo-white);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-family: var(--woo-font-family);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
     float: left;
     margin: 1em;
+}
+
+.woo.button:hover {
+    background-color: var(--woo-blueberry-70);
+}
+
+.woo.button:focus {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--woo-blueberry);
 }
 
 ul.wizard-hat li {
@@ -15,6 +48,19 @@ div.gh-token input {
     width: 75%;
     height: 50px;
     padding: .5em;
+    font-family: var(--woo-font-family);
+    font-size: 13px;
+    border: 1px solid var(--woo-gray-5);
+    border-radius: 4px;
+    background-color: var(--woo-white);
+    color: var(--woo-gray-700);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+div.gh-token input:focus {
+    outline: none;
+    border-color: var(--woo-blueberry);
+    box-shadow: 0 0 0 1px var(--woo-blueberry);
 }
 
 div.gh-token svg {
@@ -26,10 +72,44 @@ div.gh-token svg {
 
 div#wootertiarynav ul {
     width: auto;
+    font-family: var(--woo-font-family);
+}
+
+div#wootertiarynav .TertiaryNavItem {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--woo-gray-700);
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+div#wootertiarynav .TertiaryNavItem:hover {
+    color: var(--woo-blueberry);
+    background-color: rgba(56, 88, 233, 0.1);
+}
+
+div#wootertiarynav .TertiaryNavItem.active {
+    color: var(--woo-blueberry);
+    background-color: rgba(56, 88, 233, 0.1);
+    font-weight: 600;
 }
 
 #list li {
     list-style: disc;
+    font-family: var(--woo-font-family);
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--woo-gray-700);
+}
+
+ul.wizard-hat li {
+    width: 100%;
+    float: left;
+    font-family: var(--woo-font-family);
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--woo-gray-700);
 }
 
 .woo p {
@@ -37,31 +117,152 @@ div#wootertiarynav ul {
     float: left;
     margin: 1em;
     padding: auto;
+    font-family: var(--woo-font-family);
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--woo-gray-700);
 }
 
 
 html.Theme__Dark .PasswordToggleInput:focus,
 .PasswordToggleInput:focus {
     outline: none;
-    box-shadow: inset 0 0 0 1px #51bb7b;
-    border-color: transparent;
+    box-shadow: 0 0 0 1px var(--woo-blueberry);
+    border-color: var(--woo-blueberry);
 }
 
 html.Theme__Dark .PasswordToggleInput {
     box-shadow: 0 0 0 1px #5d5e5e;
     background-color: #262727;
+    color: var(--woo-white);
+    font-family: var(--woo-font-family);
 }
 
 html.Theme__Dark .css-1s2u09g-control,
 html.Theme__Dark .plugin-select>div,
 html.Theme__Dark #react-select-2-listbox {
     background-color: #262727;
+    color: var(--woo-white);
+    font-family: var(--woo-font-family);
 }
 
 html.Theme__Dark div.woo div.plugin-select div {
-    color: #fff;
+    color: var(--woo-white);
+    font-family: var(--woo-font-family);
 }
 
 button.active {
+    color: var(--woo-blueberry) !important;
+    font-weight: 600;
     text-decoration: underline;
+    font-family: var(--woo-font-family);
+}
+
+/* Additional Woo Happy Studio enhancements */
+body {
+    font-family: var(--woo-font-family);
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--woo-gray-700);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--woo-font-family);
+    font-weight: 600;
+    color: var(--woo-gray-700);
+}
+
+/* Enhanced focus states for accessibility */
+*:focus {
+    outline: 2px solid var(--woo-blueberry);
+    outline-offset: 2px;
+}
+
+/* Smooth transitions for interactive elements */
+button, input, select, textarea {
+    transition: all 0.2s ease;
+}
+
+/* Blueprint Import Preview Panel - Fix alignment and formatting */
+.FlyModal ul li {
+    text-align: left !important;
+    text-align-last: left !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    line-height: 1.4 !important;
+}
+
+/* Ensure list items in preview are left-aligned */
+div[style*="padding: '20px'"] ul li,
+div[style*="padding: 20px"] ul li {
+    text-align: left !important;
+    display: block !important;
+    width: 100% !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+}
+
+/* Fix headings alignment in preview panel */
+.FlyModal .Title,
+.FlyModal h1,
+.FlyModal h2,
+.FlyModal h3,
+.FlyModal h4,
+.FlyModal h5,
+.FlyModal h6 {
+    text-align: left !important;
+    text-align-last: left !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+}
+
+/* Reduce excessive spacing around Blueprint Import Preview title */
+.TextBase.Title,
+.TextBase_2s61x_v14-2-3.TextBase.Title,
+div[class*="TextBase"][class*="Title"] {
+    margin: 0 !important;
+    margin-bottom: 16px !important;
+    padding: 0 !important;
+    line-height: 1.2 !important;
+}
+
+/* Fix text elements alignment in preview panel */
+.FlyModal .Text,
+.FlyModal p,
+.FlyModal div {
+    text-align: left !important;
+    text-align-last: left !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    line-height: 1.4 !important;
+}
+
+/* Ensure all content in preview panel is left-aligned */
+div[style*="padding: '20px'"] *,
+div[style*="padding: 20px"] * {
+    text-align: left !important;
+    text-align-last: left !important;
+}
+
+/* Override LocalWP ButtonBase CSS custom properties to remove inner border */
+.ButtonBase__Form_Outline__VJ5z_v14-2-3 {
+    --Button_BorderColor_Light: transparent !important;
+    --Button_BorderColor_Dark: transparent !important;
+    --Button_TextColor_Light: var(--woo-blueberry) !important;
+    --Button_TextColor_Dark: var(--woo-blueberry) !important;
+    --Button_SvgPathFillColor_Light: var(--woo-blueberry) !important;
+    --Button_SvgPathFillColor_Dark: var(--woo-blueberry) !important;
+    --Button_IfFill__Background: var(--woo-blueberry) !important;
+    border-radius: 4px !important;
+    font-family: var(--woo-font-family) !important;
+}
+
+.ButtonBase__Form_Outline__VJ5z_v14-2-3:hover {
+    --Button_TextColor_Light: var(--woo-blueberry-70) !important;
+    --Button_TextColor_Dark: var(--woo-blueberry-70) !important;
+    --Button_SvgPathFillColor_Light: var(--woo-blueberry-70) !important;
+    --Button_SvgPathFillColor_Dark: var(--woo-blueberry-70) !important;
+    --Button_IfFill__Background: var(--woo-blueberry-70) !important;
 }

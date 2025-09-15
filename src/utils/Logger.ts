@@ -1,15 +1,26 @@
-import * as LocalMain from '@getflywheel/local/main';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Conditionally import LocalMain only in main process
+let LocalMain: any = null;
+try {
+    // Try to require LocalMain - it will only work in main process
+    LocalMain = require('@getflywheel/local/main');
+} catch (error) {
+    // LocalMain not available in renderer process
+    console.log('[Logger] LocalMain not available in renderer process');
+}
 
 /**
  * Centralized logging utility for Wizard Hat Toolkit
  * All logs go to a single wizard-hat-toolkit.log file with caller identification
+ * Respects the debug logging setting from Tools module
  */
 export class Logger {
     private static instance: Logger;
     private logDir: string;
     private logFile: string;
+    private debugLoggingEnabled: boolean = false;
 
     private constructor(userDataPath: string) {
         this.logDir = path.join(userDataPath, 'addons', 'wizard-hat-toolkit');
@@ -19,6 +30,9 @@ export class Logger {
         if (!fs.existsSync(this.logDir)) {
             fs.mkdirSync(this.logDir, { recursive: true });
         }
+
+        // Load debug logging setting from localStorage
+        this.loadDebugLoggingSetting();
     }
 
     public static getInstance(userDataPath?: string): Logger {
@@ -33,7 +47,40 @@ export class Logger {
     }
 
     /**
+     * Load debug logging setting from localStorage (only in renderer process)
+     */
+    private loadDebugLoggingSetting(): void {
+        try {
+            // Only try to access localStorage if we're in the renderer process
+            if (typeof localStorage !== 'undefined') {
+                const stored = localStorage.getItem('wizard-hat-tools-settings');
+                if (stored) {
+                    const settings = JSON.parse(stored);
+                    this.debugLoggingEnabled = settings.enableDebugLog || false;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading debug logging setting:', error);
+        }
+    }
+
+    /**
+     * Update debug logging setting
+     */
+    public setDebugLoggingEnabled(enabled: boolean): void {
+        this.debugLoggingEnabled = enabled;
+    }
+
+    /**
+     * Check if debug logging is enabled
+     */
+    public isDebugLoggingEnabled(): boolean {
+        return this.debugLoggingEnabled;
+    }
+
+    /**
      * Log a message with caller identification
+     * Respects debug logging setting - only writes to file if debug is enabled or level is error
      */
     public log(level: 'info' | 'warn' | 'error' | 'debug', caller: string, message: string, data?: any): void {
         try {
@@ -41,14 +88,23 @@ export class Logger {
             const dataStr = data ? ` | Data: ${JSON.stringify(data)}` : '';
             const logEntry = `[${timestamp}] [${level.toUpperCase()}] [${caller}] ${message}${dataStr}\n`;
             
-            // Write to file
-            fs.appendFileSync(this.logFile, logEntry);
-            
-            // Also log to console for development
+            // Always log to console for development
             console.log(logEntry.trim());
             
-            // Also log to LocalWP's logger for integration
-            LocalMain.getServiceContainer().cradle.localLogger.log(level, `[${caller}] ${message}`);
+            // Write to file only if debug logging is enabled or it's an error
+            if (this.debugLoggingEnabled || level === 'error') {
+                fs.appendFileSync(this.logFile, logEntry);
+            }
+            
+            // Also log to LocalWP's logger for integration (only in main process)
+            if (LocalMain) {
+                try {
+                    LocalMain.getServiceContainer().cradle.localLogger.log(level, `[${caller}] ${message}`);
+                } catch (localError) {
+                    // LocalWP logger might not be available during initialization
+                    console.log(`[LocalWP Logger Unavailable] [${caller}] ${message}`);
+                }
+            }
             
         } catch (error) {
             // Fallback to console if file logging fails

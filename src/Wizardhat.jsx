@@ -4,6 +4,7 @@ import Jurassictube from "./Jurassictube";
 import PluginManagement from "./PluginManagement";
 import PluginUpdates from "./PluginUpdates";
 import BlueprintUI from "./modules/blueprint-importer/BlueprintUI";
+import ToolsUI from "./modules/tools/ToolsUI";
 
 const { exec } = require("child_process");
 // https://github.com/getflywheel/local-components
@@ -53,6 +54,7 @@ export default class Wizardhat extends React.Component {
 		this.pluginManagementContent = this.pluginManagementContent.bind(this);
 		this.pluginUpdatesContent = this.pluginUpdatesContent.bind(this);
 		this.blueprintImporterContent = this.blueprintImporterContent.bind(this);
+		this.toolsContent = this.toolsContent.bind(this);
 	}
 
 	componentDidMount() {
@@ -499,6 +501,10 @@ export default class Wizardhat extends React.Component {
 		return <BlueprintUI {...this.props} />;
 	}
 
+	toolsContent() {
+		return <ToolsUI {...this.props} />;
+	}
+
 	render() {
 		if (
 			"running" ===
@@ -514,22 +520,22 @@ export default class Wizardhat extends React.Component {
 								<Title>Utilities</Title>
 							</TertiaryNavItem>
 							<TertiaryNavItem
-								path="/jurassic-tube"
-								component={this.jurassicTube}
-							>
-								Jurassic Tube
-							</TertiaryNavItem>
-							<TertiaryNavItem
 								path="/shop-config"
 								component={this.storeConfig}
 							>
-								Shop Config Options
+								Shop Base Address
 							</TertiaryNavItem>
 							<TertiaryNavItem
 								path="/plugin-management"
 								component={this.pluginManagementContent}
 							>
-								Plugin Management
+								Plugin Installer
+							</TertiaryNavItem>
+							<TertiaryNavItem
+								path="/plugin-updates"
+								component={this.pluginUpdatesContent}
+							>
+								Plugin Updater
 							</TertiaryNavItem>
 							<TertiaryNavItem
 								path="/blueprint-importer"
@@ -538,18 +544,17 @@ export default class Wizardhat extends React.Component {
 								Blueprint Importer
 							</TertiaryNavItem>
 							<TertiaryNavItem
-								path="/plugin-updates"
-								component={this.pluginUpdatesContent}
+								path="/jurassic-tube"
+								component={this.jurassicTube}
 							>
-								Plugin Updates
+								Jurassic Tube
 							</TertiaryNavItem>
-
-							{/*<TertiaryNavItem
+							<TertiaryNavItem
 								path="/tools"
-								component={this.Tools}
+								component={this.toolsContent}
 							>
-							Tools
-							</TertiaryNavItem>*/}
+								Tools
+							</TertiaryNavItem>
 						</TertiaryNav>
 					</div>
 				</div>
