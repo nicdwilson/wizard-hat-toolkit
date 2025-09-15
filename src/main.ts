@@ -17,7 +17,12 @@ import { PluginManager } from './modules/plugin-manager';
 // Import blueprint importer modules
 import { BlueprintManager } from './modules/blueprint-importer/BlueprintManager';
 import { BlueprintValidator } from './modules/blueprint-importer/BlueprintValidator';
+
+// Import centralized logger
+import { Logger } from './utils/Logger';
 export default function (context) {
+	console.log('[Wizard Hat Toolkit] Main process starting...');
+	
 	const { electron } = context;
 	const { ipcMain } = electron;
 	const { validateGitHubToken, ValidationError } = require('validate-github-token');
@@ -27,26 +32,10 @@ export default function (context) {
 	const request = require('request');
 	const path = require('path');
 
-	// File logging utility
-	function logToFile(message: string, level: string = 'info') {
-		try {
-			const logDir = path.join(context.environment.userDataPath, 'addons', 'wizard-hat-toolkit');
-			const logFile = path.join(logDir, 'main.log');
-			
-			// Ensure directory exists
-			if (!fs.existsSync(logDir)) {
-				fs.mkdirSync(logDir, { recursive: true });
-			}
-			
-			const timestamp = new Date().toISOString();
-			const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${message}\n`;
-			
-			fs.appendFileSync(logFile, logEntry);
-		} catch (error) {
-			// Fallback to console if file logging fails
-			console.error('Failed to write to log file:', error);
-		}
-	}
+	// Initialize centralized logger
+	console.log('[Wizard Hat Toolkit] Initializing logger...');
+	const logger = Logger.getInstance(context.environment.userDataPath);
+	console.log('[Wizard Hat Toolkit] Logger initialized successfully');
 	let premiumPluginInfo = {};
 	let premiumPluginSelections = [];
 	let premiumThemeInfo = {};
@@ -118,68 +107,44 @@ export default function (context) {
 
 	// Debug IPC handler to test if IPC is working
 	ipcMain.on('debug-test', (event, data) => {
-		const logMessage = `[Main] DEBUG TEST IPC received: ${JSON.stringify(data)}`;
-		console.log(logMessage);
-		LocalMain.getServiceContainer().cradle.localLogger.log('info', logMessage);
+		logger.info('MainProcess', 'DEBUG TEST IPC received', data);
 		LocalMain.sendIPCEvent('debug-test-response', { received: data, timestamp: new Date().toISOString() });
 	});
 
+	// Handle debug logging toggle
+	ipcMain.on('toggle-debug-logging', (event, enabled) => {
+		logger.setDebugLoggingEnabled(enabled);
+		logger.info('MainProcess', `Debug logging ${enabled ? 'enabled' : 'disabled'}`);
+	});
+
 	ipcMain.on("install-plugins", async (event, pluginsToInstall, siteId) => {
-		const logMessage = `[Main] install-plugins IPC received: ${JSON.stringify({ pluginsToInstall, siteId })}`;
-		console.log(logMessage);
-		LocalMain.getServiceContainer().cradle.localLogger.log('info', logMessage);
-		logToFile(logMessage, 'info');
+		logger.info('MainProcess', 'install-plugins IPC received', { pluginsToInstall, siteId });
 		
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
-		const siteLogMessage = `[Main] Site found: ${JSON.stringify({ 
+		logger.info('MainProcess', 'Site found', { 
 			siteId: site?.id, 
 			siteName: site?.name,
 			sitePath: site?.path
-		})}`;
-		console.log(siteLogMessage);
-		LocalMain.getServiceContainer().cradle.localLogger.log('info', siteLogMessage);
-		logToFile(siteLogMessage, 'info');
+		});
 		
 		try {
 			// Initialize PluginManager if not already done
 			if (!pluginManager.isInitialized) {
-				const initLogMessage = '[Main] Initializing PluginManager...';
-				console.log(initLogMessage);
-				LocalMain.getServiceContainer().cradle.localLogger.log('info', initLogMessage);
-				logToFile(initLogMessage, 'info');
-				
+				logger.info('MainProcess', 'Initializing PluginManager...');
 				await pluginManager.initialize(context, process.env.GITHUB_TOKEN);
-				
-				const successLogMessage = '[Main] PluginManager initialized successfully';
-				console.log(successLogMessage);
-				LocalMain.getServiceContainer().cradle.localLogger.log('info', successLogMessage);
-				logToFile(successLogMessage, 'info');
+				logger.info('MainProcess', 'PluginManager initialized successfully');
 			} else {
-				const alreadyInitMessage = '[Main] PluginManager already initialized';
-				console.log(alreadyInitMessage);
-				LocalMain.getServiceContainer().cradle.localLogger.log('info', alreadyInitMessage);
-				logToFile(alreadyInitMessage, 'info');
+				logger.info('MainProcess', 'PluginManager already initialized');
 			}
 			
 			// Use new PluginManager
-			const callLogMessage = '[Main] Calling installPluginsLegacy...';
-			console.log(callLogMessage);
-			LocalMain.getServiceContainer().cradle.localLogger.log('info', callLogMessage);
-			logToFile(callLogMessage, 'info');
-			
+			logger.info('MainProcess', 'Calling installPluginsLegacy...');
 			await pluginManager.installPluginsLegacy(pluginsToInstall, site);
-			
-			const completeLogMessage = '[Main] Plugin installation completed successfully';
-			console.log(completeLogMessage);
-			LocalMain.getServiceContainer().cradle.localLogger.log('info', completeLogMessage);
-			logToFile(completeLogMessage, 'info');
+			logger.info('MainProcess', 'Plugin installation completed successfully');
 			
 			LocalMain.sendIPCEvent('spinner-done');
 		} catch (error) {
-			const errorLogMessage = `[Main] Plugin installation failed: ${error.message}`;
-			console.error(errorLogMessage);
-			LocalMain.getServiceContainer().cradle.localLogger.log('error', errorLogMessage);
-			logToFile(errorLogMessage, 'error');
+			logger.error('MainProcess', 'Plugin installation failed', { error: error.message });
 			LocalMain.sendIPCEvent('error');
 			LocalMain.sendIPCEvent('spinner-done');
 		}
@@ -323,7 +288,7 @@ export default function (context) {
 	});
 
 	ipcMain.on('apply-plugin-updates', async (event, siteId) => {
-		console.log('[Main] apply-plugin-updates IPC event received for site:', siteId);
+		logger.info('MainProcess', 'apply-plugin-updates IPC event received', { siteId });
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
 		
 		try {

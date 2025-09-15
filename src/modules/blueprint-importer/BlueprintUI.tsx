@@ -352,67 +352,95 @@ export default class BlueprintUI extends Component<any, BlueprintUIState> {
 				<Title>Blueprint Import Settings</Title>
 				
 				<div style={{ padding: '20px' }}>
-					<TableList>
-						<TableListRow label="Auto-overwrite plugins">
+					<div style={{ marginBottom: '20px' }}>
+						<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
 							<Checkbox
 								checked={this.state.settings.autoOverwritePlugins}
 								onChange={(checked) => this.handleSettingsChange('autoOverwritePlugins', checked)}
 							/>
-							<Text>
-								Automatically overwrite existing plugins during import
+							<Text style={{ marginLeft: '8px', marginBottom: '0' }}>
+								Auto-overwrite plugins
 							</Text>
-						</TableListRow>
-						
-						<TableListRow label="Auto-overwrite themes">
+						</div>
+						<Text style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
+							Automatically overwrite existing plugins during import
+						</Text>
+					</div>
+					
+					<div style={{ marginBottom: '20px' }}>
+						<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
 							<Checkbox
 								checked={this.state.settings.autoOverwriteThemes}
 								onChange={(checked) => this.handleSettingsChange('autoOverwriteThemes', checked)}
 							/>
-							<Text>
-								Automatically overwrite existing themes during import
+							<Text style={{ marginLeft: '8px', marginBottom: '0' }}>
+								Auto-overwrite themes
 							</Text>
-						</TableListRow>
-						
-						<TableListRow label="Auto-overwrite settings">
+						</div>
+						<Text style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
+							Automatically overwrite existing themes during import
+						</Text>
+					</div>
+					
+					<div style={{ marginBottom: '20px' }}>
+						<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
 							<Checkbox
 								checked={this.state.settings.autoOverwriteSettings}
 								onChange={(checked) => this.handleSettingsChange('autoOverwriteSettings', checked)}
 							/>
-							<Text>
-								Automatically overwrite existing settings during import
+							<Text style={{ marginLeft: '8px', marginBottom: '0' }}>
+								Auto-overwrite settings
 							</Text>
-						</TableListRow>
-						
-						<TableListRow label="Skip conflicts">
+						</div>
+						<Text style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
+							Automatically overwrite existing settings during import
+						</Text>
+					</div>
+					
+					<div style={{ marginBottom: '20px' }}>
+						<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
 							<Checkbox
 								checked={this.state.settings.skipConflicts}
 								onChange={(checked) => this.handleSettingsChange('skipConflicts', checked)}
 							/>
-							<Text>
-								Skip items that conflict with existing installations
+							<Text style={{ marginLeft: '8px', marginBottom: '0' }}>
+								Skip conflicts
 							</Text>
-						</TableListRow>
-						
-						<TableListRow label="Backup before import">
+						</div>
+						<Text style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
+							Skip items that conflict with existing installations
+						</Text>
+					</div>
+					
+					<div style={{ marginBottom: '20px' }}>
+						<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
 							<Checkbox
 								checked={this.state.settings.backupBeforeImport}
 								onChange={(checked) => this.handleSettingsChange('backupBeforeImport', checked)}
 							/>
-							<Text>
-								Create a backup before importing blueprint
+							<Text style={{ marginLeft: '8px', marginBottom: '0' }}>
+								Backup before import
 							</Text>
-						</TableListRow>
-						
-						<TableListRow label="Notify on completion">
+						</div>
+						<Text style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
+							Create a backup before importing blueprint
+						</Text>
+					</div>
+					
+					<div style={{ marginBottom: '20px' }}>
+						<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
 							<Checkbox
 								checked={this.state.settings.notifyOnCompletion}
 								onChange={(checked) => this.handleSettingsChange('notifyOnCompletion', checked)}
 							/>
-							<Text>
-								Show notification when import completes
+							<Text style={{ marginLeft: '8px', marginBottom: '0' }}>
+								Notify on completion
 							</Text>
-						</TableListRow>
-					</TableList>
+						</div>
+						<Text style={{ fontSize: '12px', color: '#666', marginLeft: '24px' }}>
+							Show notification when import completes
+						</Text>
+					</div>
 
 					<div style={{ marginTop: '20px' }}>
 						<Button onClick={this.closeSettings} className="woo button">

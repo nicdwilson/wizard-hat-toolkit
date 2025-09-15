@@ -6,11 +6,15 @@ const addonName = packageJSON['productName'];
 const addonID = packageJSON['slug'];
 
 export default function ( context ) {
+	console.log('[Wizard Hat Toolkit] Renderer process starting...');
+	
 	const {React, hooks} = context;
 	const {Route} = context.ReactRouter;
 	const stylesheetPath = path.resolve(__dirname, '../style.css');
 	//insert our stylesheet
 	hooks.addContent('stylesheets', () => <link rel="stylesheet" key="notes-addon-styleesheet" href={stylesheetPath} />);
+	
+	console.log('[Wizard Hat Toolkit] Renderer initialized successfully');
 
 	hooks.addContent('routesSiteInfo', () =>
 		<Route key="woocommerce-addon-tab" path="/main/site-info/:siteID/woocommerce" render={props => <Wizardhat {...props} />} />

@@ -359,7 +359,6 @@ export class BlueprintManager {
 		return {
 			version: '1.0',
 			name: 'WooCommerce Blueprint',
-			description: 'Converted from WooCommerce blueprint format',
 			plugins,
 			themes,
 			settings,

@@ -2,30 +2,11 @@ import * as LocalMain from '@getflywheel/local/main';
 import { GitHubClient } from './utils/GitHubClient';
 import { PluginRegistry } from './PluginRegistry';
 import { PluginData, ThemeData, DownloadResult } from './types/PluginTypes';
+import { Logger } from '../../utils/Logger';
 
-// File logging utility
+// File system imports
 const fs = require('fs');
 const path = require('path');
-
-function logToFile(message: string, level: string = 'info') {
-    try {
-        const logDir = path.join(process.env.HOME || '', 'Library', 'Application Support', 'Local', 'addons', 'wizard-hat-toolkit');
-        const logFile = path.join(logDir, 'plugin-downloader.log');
-        
-        // Ensure directory exists
-        if (!fs.existsSync(logDir)) {
-            fs.mkdirSync(logDir, { recursive: true });
-        }
-        
-        const timestamp = new Date().toISOString();
-        const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${message}\n`;
-        
-        fs.appendFileSync(logFile, logEntry);
-    } catch (error) {
-        // Fallback to console if file logging fails
-        console.error('Failed to write to log file:', error);
-    }
-}
 
 /**
  * Handles downloading of plugins and themes from various sources
@@ -35,11 +16,13 @@ export class PluginDownloader {
     private githubClient: GitHubClient;
     private registry: PluginRegistry;
     private userDataPath: string;
+    private logger: Logger;
 
     constructor(userDataPath: string, githubToken: string) {
         this.userDataPath = userDataPath;
         this.githubClient = new GitHubClient(githubToken);
         this.registry = PluginRegistry.getInstance();
+        this.logger = Logger.getInstance(userDataPath);
     }
 
     /**
@@ -48,47 +31,26 @@ export class PluginDownloader {
     public async downloadPlugins(plugins: PluginData[]): Promise<string[]> {
         const downloadedFiles: string[] = [];
         
-        const startMessage = `[PluginDownloader] Starting download of ${plugins.length} plugins`;
-        console.log(startMessage);
-        logToFile(startMessage, 'info');
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-            `Starting download of ${plugins.length} plugins`
-        );
+        this.logger.info('PluginDownloader', `Starting download of ${plugins.length} plugins`);
 
         for (const plugin of plugins) {
             try {
-                const downloadMessage = `[PluginDownloader] Attempting to download plugin: ${plugin.name} (${plugin.source})`;
-                console.log(downloadMessage);
-                logToFile(downloadMessage, 'info');
+                this.logger.info('PluginDownloader', `Attempting to download plugin: ${plugin.name}`, { source: plugin.source });
                 
                 const filePath = await this.downloadPlugin(plugin);
                 if (filePath) {
                     downloadedFiles.push(filePath);
-                    const successMessage = `[PluginDownloader] Successfully downloaded ${plugin.name} to ${filePath}`;
-                    console.log(successMessage);
-                    logToFile(successMessage, 'info');
+                    this.logger.info('PluginDownloader', `Successfully downloaded ${plugin.name}`, { filePath });
                 } else {
-                    const nullMessage = `[PluginDownloader] downloadPlugin returned null for ${plugin.name}`;
-                    console.log(nullMessage);
-                    logToFile(nullMessage, 'warning');
+                    this.logger.warn('PluginDownloader', `downloadPlugin returned null for ${plugin.name}`);
                 }
             } catch (error) {
-                const errorMessage = `[PluginDownloader] Failed to download plugin ${plugin.name}: ${error.message}`;
-                console.error(errorMessage);
-                logToFile(errorMessage, 'error');
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                    `Failed to download plugin ${plugin.name}: ${error.message}`
-                );
+                this.logger.error('PluginDownloader', `Failed to download plugin ${plugin.name}`, { error: error.message });
                 // Continue with other plugins even if one fails
             }
         }
 
-        const finalMessage = `[PluginDownloader] Successfully downloaded ${downloadedFiles.length}/${plugins.length} plugins`;
-        console.log(finalMessage);
-        logToFile(finalMessage, 'info');
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-            `Successfully downloaded ${downloadedFiles.length}/${plugins.length} plugins`
-        );
+        this.logger.info('PluginDownloader', `Successfully downloaded ${downloadedFiles.length}/${plugins.length} plugins`);
 
         return downloadedFiles;
     }
@@ -99,9 +61,7 @@ export class PluginDownloader {
     public async downloadThemes(themes: ThemeData[]): Promise<string[]> {
         const downloadedFiles: string[] = [];
         
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-            `Starting download of ${themes.length} themes`
-        );
+        this.logger.info('PluginDownloader', `Starting download of ${themes.length} themes`);
 
         for (const theme of themes) {
             try {
@@ -110,16 +70,12 @@ export class PluginDownloader {
                     downloadedFiles.push(filePath);
                 }
             } catch (error) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                    `Failed to download theme ${theme.name}: ${error.message}`
-                );
+                this.logger.error('PluginDownloader', `Failed to download theme ${theme.name}`, { error: error.message });
                 // Continue with other themes even if one fails
             }
         }
 
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-            `Successfully downloaded ${downloadedFiles.length}/${themes.length} themes`
-        );
+        this.logger.info('PluginDownloader', `Successfully downloaded ${downloadedFiles.length}/${themes.length} themes`);
 
         return downloadedFiles;
     }
@@ -140,9 +96,7 @@ export class PluginDownloader {
         const outputPath = path.join(tempDir, `${plugin.slug}.zip`);
         
         try {
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                `Downloading plugin ${plugin.name} (${plugin.source})`
-            );
+            this.logger.info('PluginDownloader', `Downloading plugin ${plugin.name}`, { source: plugin.source });
 
             let result: DownloadResult;
 
@@ -164,17 +118,13 @@ export class PluginDownloader {
             }
 
             if (result.success && result.filePath) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                    `Successfully downloaded ${plugin.name} to ${result.filePath}`
-                );
+                this.logger.info('PluginDownloader', `Successfully downloaded ${plugin.name}`, { filePath: result.filePath });
                 return result.filePath;
             } else {
                 throw new Error(result.error || 'Download failed');
             }
         } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `Failed to download plugin ${plugin.name}: ${error.message}`
-            );
+            this.logger.error('PluginDownloader', `Failed to download plugin ${plugin.name}`, { error: error.message });
             throw error;
         }
     }
@@ -195,9 +145,7 @@ export class PluginDownloader {
         const outputPath = path.join(tempDir, `${theme.slug}.zip`);
         
         try {
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                `Downloading theme ${theme.name} (${theme.source})`
-            );
+            this.logger.info('PluginDownloader', `Downloading theme ${theme.name}`, { source: theme.source });
 
             let result: DownloadResult;
 
@@ -219,17 +167,13 @@ export class PluginDownloader {
             }
 
             if (result.success && result.filePath) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                    `Successfully downloaded ${theme.name} to ${result.filePath}`
-                );
+                this.logger.info('PluginDownloader', `Successfully downloaded ${theme.name}`, { filePath: result.filePath });
                 return result.filePath;
             } else {
                 throw new Error(result.error || 'Download failed');
             }
         } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `Failed to download theme ${theme.name}: ${error.message}`
-            );
+            this.logger.error('PluginDownloader', `Failed to download theme ${theme.name}`, { error: error.message });
             throw error;
         }
     }
@@ -273,13 +217,9 @@ export class PluginDownloader {
         for (const filePath of filePaths) {
             try {
                 await fs.promises.unlink(filePath);
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                    `Cleaned up file: ${filePath}`
-                );
+                this.logger.info('PluginDownloader', `Cleaned up file: ${filePath}`);
             } catch (error) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('warning', 
-                    `Failed to clean up file ${filePath}: ${error.message}`
-                );
+                this.logger.warn('PluginDownloader', `Failed to clean up file ${filePath}`, { error: error.message });
             }
         }
     }
