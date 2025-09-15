@@ -38,6 +38,38 @@ Clone the repository into the following directory depending on your platform:
 ## Post Install
 
 Some of the tools require access to private GitHub repos. When you first start the addon, you will be presented with an interface to enter a GitHub token. Once a valid token has been entered in that interface, the features requiring a token will be enabled for as long as the token remains valid. To bring the interface back, you can revoke the token from your [GitHub account token management page](https://github.com/settings/tokens). When [creating a new token](https://github.com/settings/tokens/new) for this app, ensure that the `repo` scope is selected. Feel free to set the expiration for whatever you'd like. Tokens are easy to create and the app will automatically prompt for a new one on expiry.
+
+## Features
+
+### Blueprint Importer
+Import WooCommerce Blueprint files to quickly configure your site with predefined plugins, themes, and settings. This feature allows you to:
+- Upload and validate blueprint JSON files
+- Preview what will be imported before applying changes
+- Handle conflicts with existing installations
+- Configure import settings and preferences
+- Track import progress and handle errors
+
+### Plugin Management
+Install and manage WooCommerce plugins from various sources:
+- WordPress.org plugins
+- Premium WooCommerce marketplace plugins
+- GitHub-hosted plugins
+
+### Theme Management
+Install and manage WooCommerce themes from various sources:
+- WordPress.org themes
+- Premium WooCommerce marketplace themes
+- GitHub-hosted themes
+
+### Site Configuration
+Quickly switch between different country/locale configurations for WooCommerce settings.
+
+### Plugin Updates
+Automated updates for marketplace plugins with conflict detection and resolution.
+
+## Blueprint Format
+
+Blueprints are JSON files that define a complete WooCommerce store configuration. See `sample-blueprint.json` for an example format.
 ## License
 
 GPL

@@ -10,6 +10,13 @@ import { PluginDetector } from './modules/plugin-updater/PluginDetector';
 import { UpdateChecker } from './modules/plugin-updater/UpdateChecker';
 import { PluginUpdater } from './modules/plugin-updater/PluginUpdater';
 import { UpdateSettingsManager } from './modules/plugin-updater/UpdateSettings';
+
+// Import new plugin manager
+import { PluginManager } from './modules/plugin-manager';
+
+// Import blueprint importer modules
+import { BlueprintManager } from './modules/blueprint-importer/BlueprintManager';
+import { BlueprintValidator } from './modules/blueprint-importer/BlueprintValidator';
 export default function (context) {
 	const { electron } = context;
 	const { ipcMain } = electron;
@@ -18,10 +25,35 @@ export default function (context) {
 	const { Octokit } = require("@octokit/rest");
 	const fs = require('fs');
 	const request = require('request');
+	const path = require('path');
+
+	// File logging utility
+	function logToFile(message: string, level: string = 'info') {
+		try {
+			const logDir = path.join(context.environment.userDataPath, 'addons', 'wizard-hat-toolkit');
+			const logFile = path.join(logDir, 'main.log');
+			
+			// Ensure directory exists
+			if (!fs.existsSync(logDir)) {
+				fs.mkdirSync(logDir, { recursive: true });
+			}
+			
+			const timestamp = new Date().toISOString();
+			const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${message}\n`;
+			
+			fs.appendFileSync(logFile, logEntry);
+		} catch (error) {
+			// Fallback to console if file logging fails
+			console.error('Failed to write to log file:', error);
+		}
+	}
 	let premiumPluginInfo = {};
 	let premiumPluginSelections = [];
 	let premiumThemeInfo = {};
 	let premiumThemeSelections = [];
+	
+	// Initialize PluginManager
+	const pluginManager = PluginManager.getInstance();
 
 	ipcMain.on('set-options', async (event, options, siteId) => {
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
@@ -84,9 +116,73 @@ export default function (context) {
 		LocalMain.sendIPCEvent('token-is-valid', validToken);
 	});
 
+	// Debug IPC handler to test if IPC is working
+	ipcMain.on('debug-test', (event, data) => {
+		const logMessage = `[Main] DEBUG TEST IPC received: ${JSON.stringify(data)}`;
+		console.log(logMessage);
+		LocalMain.getServiceContainer().cradle.localLogger.log('info', logMessage);
+		LocalMain.sendIPCEvent('debug-test-response', { received: data, timestamp: new Date().toISOString() });
+	});
+
 	ipcMain.on("install-plugins", async (event, pluginsToInstall, siteId) => {
+		const logMessage = `[Main] install-plugins IPC received: ${JSON.stringify({ pluginsToInstall, siteId })}`;
+		console.log(logMessage);
+		LocalMain.getServiceContainer().cradle.localLogger.log('info', logMessage);
+		logToFile(logMessage, 'info');
+		
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
-		installPlugins(pluginsToInstall, site);
+		const siteLogMessage = `[Main] Site found: ${JSON.stringify({ 
+			siteId: site?.id, 
+			siteName: site?.name,
+			sitePath: site?.path
+		})}`;
+		console.log(siteLogMessage);
+		LocalMain.getServiceContainer().cradle.localLogger.log('info', siteLogMessage);
+		logToFile(siteLogMessage, 'info');
+		
+		try {
+			// Initialize PluginManager if not already done
+			if (!pluginManager.isInitialized) {
+				const initLogMessage = '[Main] Initializing PluginManager...';
+				console.log(initLogMessage);
+				LocalMain.getServiceContainer().cradle.localLogger.log('info', initLogMessage);
+				logToFile(initLogMessage, 'info');
+				
+				await pluginManager.initialize(context, process.env.GITHUB_TOKEN);
+				
+				const successLogMessage = '[Main] PluginManager initialized successfully';
+				console.log(successLogMessage);
+				LocalMain.getServiceContainer().cradle.localLogger.log('info', successLogMessage);
+				logToFile(successLogMessage, 'info');
+			} else {
+				const alreadyInitMessage = '[Main] PluginManager already initialized';
+				console.log(alreadyInitMessage);
+				LocalMain.getServiceContainer().cradle.localLogger.log('info', alreadyInitMessage);
+				logToFile(alreadyInitMessage, 'info');
+			}
+			
+			// Use new PluginManager
+			const callLogMessage = '[Main] Calling installPluginsLegacy...';
+			console.log(callLogMessage);
+			LocalMain.getServiceContainer().cradle.localLogger.log('info', callLogMessage);
+			logToFile(callLogMessage, 'info');
+			
+			await pluginManager.installPluginsLegacy(pluginsToInstall, site);
+			
+			const completeLogMessage = '[Main] Plugin installation completed successfully';
+			console.log(completeLogMessage);
+			LocalMain.getServiceContainer().cradle.localLogger.log('info', completeLogMessage);
+			logToFile(completeLogMessage, 'info');
+			
+			LocalMain.sendIPCEvent('spinner-done');
+		} catch (error) {
+			const errorLogMessage = `[Main] Plugin installation failed: ${error.message}`;
+			console.error(errorLogMessage);
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', errorLogMessage);
+			logToFile(errorLogMessage, 'error');
+			LocalMain.sendIPCEvent('error');
+			LocalMain.sendIPCEvent('spinner-done');
+		}
 	});
 
 	// Plugin Update Handlers
@@ -157,6 +253,75 @@ export default function (context) {
 		LocalMain.sendIPCEvent('plugin-settings', settings);
 	});
 
+	// Blueprint Import Handlers
+	ipcMain.on('validate-blueprint-content', async (event, blueprintContent) => {
+		try {
+			console.log('Received blueprint content, length:', blueprintContent.length);
+			
+			// Parse JSON first to check if it's valid
+			const parsedData = JSON.parse(blueprintContent);
+			console.log('JSON parsed successfully:', Object.keys(parsedData));
+			
+			const blueprintManager = new BlueprintManager(context);
+			const blueprintData = await blueprintManager.parseBlueprint(blueprintContent);
+			
+			console.log('Blueprint validation successful');
+			LocalMain.sendIPCEvent('blueprint-validated', {
+				blueprintData,
+				errors: [],
+				warnings: []
+			});
+		} catch (error) {
+			console.error('Blueprint validation error:', error);
+			LocalMain.sendIPCEvent('blueprint-validation-error', {
+				errors: [error.message],
+				warnings: []
+			});
+		}
+	});
+
+	ipcMain.on('analyze-blueprint-conflicts', async (event, siteId, blueprintData) => {
+		try {
+			const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
+			const blueprintManager = new BlueprintManager(context);
+			const conflicts = await blueprintManager.analyzeConflicts(site, blueprintData);
+			
+			LocalMain.sendIPCEvent('blueprint-conflicts-analyzed', conflicts);
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
+			LocalMain.sendIPCEvent('blueprint-analysis-error', { error: error.message });
+		}
+	});
+
+	ipcMain.on('import-blueprint', async (event, siteId, blueprintData, importOptions) => {
+		try {
+			console.log('Import blueprint IPC received:', { siteId, blueprintData, importOptions });
+			
+			const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
+			console.log('Site found:', site?.name);
+			
+			const blueprintManager = new BlueprintManager(context);
+			
+			// Send initial progress
+			LocalMain.sendIPCEvent('blueprint-import-progress', {
+				pluginsInstalled: 0,
+				themesInstalled: 0,
+				settingsApplied: 0,
+				errors: []
+			});
+
+			console.log('Starting blueprint import...');
+			const result = await blueprintManager.importBlueprint(site, blueprintData, importOptions);
+			console.log('Blueprint import completed:', result);
+			
+			LocalMain.sendIPCEvent('blueprint-import-complete', result);
+		} catch (error) {
+			console.error('Blueprint import error:', error);
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
+			LocalMain.sendIPCEvent('blueprint-import-error', { error: error.message });
+		}
+	});
+
 	ipcMain.on('apply-plugin-updates', async (event, siteId) => {
 		console.log('[Main] apply-plugin-updates IPC event received for site:', siteId);
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
@@ -220,7 +385,20 @@ export default function (context) {
 
 	ipcMain.on("install-themes", async (event, themesToInstall, siteId) => {
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
-		installThemes(themesToInstall, site);
+		try {
+			// Initialize PluginManager if not already done
+			if (!pluginManager.isInitialized) {
+				await pluginManager.initialize(context, process.env.GITHUB_TOKEN);
+			}
+			
+			// Use new PluginManager
+			await pluginManager.installThemesLegacy(themesToInstall, site);
+			LocalMain.sendIPCEvent('spinner-done');
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
+			LocalMain.sendIPCEvent('error');
+			LocalMain.sendIPCEvent('spinner-done');
+		}
 	});
 
 	ipcMain.on("get-order-id", async (event, siteId) => {
@@ -231,52 +409,22 @@ export default function (context) {
 	});
 
 	ipcMain.on("get-premium-plugin-selections", async () => {
-		if (validToken && !premiumPluginSelections.length) {
-			const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-			await octokit.request('GET /repos/{owner}/{repo}/commits', {
-				owner: 'woocommerce',
-				repo: 'all-plugins',
-			}).then(async ({ data }) => {
-				await octokit.request('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', {
-					owner: 'woocommerce',
-					repo: 'all-plugins',
-					tree_sha: data[0].commit.tree.sha,
-				}).then(async ({ data }) => {
-					var targetSha;
-					for (var index in data.tree) {
-						if ("undefined" != typeof data.tree[index] && "product-packages" === data.tree[index].path) {
-							targetSha = data.tree[index].sha;
-							break;
-						}
-					}
-					await octokit.request('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', {
-						owner: 'woocommerce',
-						repo: 'all-plugins',
-						tree_sha: targetSha,
-					}).then(async ({ data }) => {
-						for (var index in data.tree) {
-							if ("tree" === data.tree[index].type && "woocommerce-shipstation" != data.tree[index].path ) {
-								premiumPluginSelections.push({ label: data.tree[index].path, value: index });
-							}
-						}
-						premiumPluginInfo = data.tree;
-					}, function (err) {
-						LocalMain.getServiceContainer().cradle.localLogger.log("error", err)
-						LocalMain.sendIPCEvent('error');
-						LocalMain.sendIPCEvent('spinner-done');
-					});
-				}, function (err) {
-					LocalMain.getServiceContainer().cradle.localLogger.log("error", err)
-					LocalMain.sendIPCEvent('error');
-					LocalMain.sendIPCEvent('spinner-done');
-				});
-			}, function (err) {
-				LocalMain.getServiceContainer().cradle.localLogger.log("error", err)
-				LocalMain.sendIPCEvent('error');
-				LocalMain.sendIPCEvent('spinner-done');
-			});
+		try {
+			// Initialize PluginManager if not already done
+			if (!pluginManager.isInitialized) {
+				await pluginManager.initialize(context, process.env.GITHUB_TOKEN);
+			}
+			
+			// Get premium plugin selections from PluginManager
+			const selections = pluginManager.getPremiumPluginSelections();
+			premiumPluginSelections = selections; // Keep for backward compatibility
+			
+			LocalMain.sendIPCEvent("premium-plugin-selections", selections);
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log("error", error);
+			LocalMain.sendIPCEvent('error');
+			LocalMain.sendIPCEvent('spinner-done');
 		}
-		LocalMain.sendIPCEvent("premium-plugin-selections", premiumPluginSelections);
 	});
 
 	ipcMain.on("install-wc-dev-tools", async (event, siteId) => {
@@ -319,35 +467,22 @@ export default function (context) {
 	})
 
 	ipcMain.on("get-premium-theme-selections", async () => {
-		if (validToken && !premiumThemeSelections.length) {
-			const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-			await octokit.request('GET /repos/{owner}/{repo}/commits', {
-				owner: 'woocommerce',
-				repo: 'all-themes',
-			}).then(async ({ data }) => {
-				await octokit.request('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', {
-					owner: 'woocommerce',
-					repo: 'all-themes',
-					tree_sha: data[0].commit.tree.sha,
-				}).then(async ({ data }) => {
-					for (var index in data.tree) {
-						if ("tree" === data.tree[index].type) {
-							premiumThemeSelections.push({ label: data.tree[index].path, value: index });
-						}
-					}
-					premiumThemeInfo = data.tree;
-				}, function (err) {
-					LocalMain.getServiceContainer().cradle.localLogger.log("error", err)
-					LocalMain.sendIPCEvent('error');
-					LocalMain.sendIPCEvent('spinner-done');
-				});
-			}, function (err) {
-				LocalMain.getServiceContainer().cradle.localLogger.log("error", err)
-				LocalMain.sendIPCEvent('error');
-				LocalMain.sendIPCEvent('spinner-done');
-			});
+		try {
+			// Initialize PluginManager if not already done
+			if (!pluginManager.isInitialized) {
+				await pluginManager.initialize(context, process.env.GITHUB_TOKEN);
+			}
+			
+			// Get premium theme selections from PluginManager
+			const selections = pluginManager.getPremiumThemeSelections();
+			premiumThemeSelections = selections; // Keep for backward compatibility
+			
+			LocalMain.sendIPCEvent("premium-theme-selections", selections);
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log("error", error);
+			LocalMain.sendIPCEvent('error');
+			LocalMain.sendIPCEvent('spinner-done');
 		}
-		LocalMain.sendIPCEvent("premium-theme-selections", premiumThemeSelections);
 	});
 
 	ipcMain.on("install-woocommerce", async (event, siteId, path) => {
@@ -457,26 +592,39 @@ export default function (context) {
 	});
 
 	ipcMain.on('switch-country', async (event, siteId, options) => {
+		console.log('[Main] switch-country IPC received:', { siteId, options });
+		LocalMain.getServiceContainer().cradle.localLogger.log('info', `switch-country IPC received for site ${siteId}`);
+		
 		// Get site object.
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
 		var error = false;
+		
 		for (var option in options) {
-			await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-				'option',
-				'set',
-				option,
-				options[option],
-			]).then(function () { }, function (err) {
+			try {
+				await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+					'option',
+					'set',
+					option,
+					options[option],
+				]);
+				console.log(`[Main] Set option ${option} = ${options[option]}`);
+			} catch (err) {
+				console.error(`[Main] Failed to set option ${option}:`, err);
 				LocalMain.sendIPCEvent('error');
 				LocalMain.getServiceContainer().cradle.localLogger.log('error', err);
 				error = true;
-			});
+			}
 		}
 
 		if (!error) {
+			console.log('[Main] Country switch completed successfully');
 			LocalMain.sendIPCEvent('instructions');
+		} else {
+			console.error('[Main] Country switch failed');
 		}
-
+		
+		// Always send spinner-done to stop the spinner
+		LocalMain.sendIPCEvent('spinner-done');
 	});
 
 	/**
