@@ -1,3 +1,31 @@
+# Source files
+src/
+*.ts
+*.tsx
+*.jsx
 
-z32o5gffS-tunnel.command
-OxeZShz3d-tunnel.command
+# Build files
+*.map
+tsconfig.json
+
+# Development files
+.vscode/
+.editorconfig
+.eslintrc
+*.code-workspace
+
+# Documentation
+*.md
+release/
+
+# Logs
+*.log
+
+# Dist files (to prevent recursive inclusion)
+dist/
+
+# Other
+.DS_Store
+dotfiles.tar.gz
+jtubesetup.command
+changelog.md

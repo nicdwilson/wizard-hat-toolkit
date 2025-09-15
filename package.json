@@ -24,7 +24,7 @@
         "build": "tsc",
         "prepare": "tsc",
         "watch": "yarn run build --watch",
-        "dist": "node node_modules/npm-pack-all --output dist/",
+        "dist": "npm pack && mv wizard-hat-toolkit-*.tgz dist/",
         "release": "npm run dist"
     },
     "devDependencies": {
@@ -73,25 +73,15 @@
         "local-by-flywheel": "^5.0.0"
     },
     "bundleDependencies": [
-        "@emotion/react",
-        "@emotion/styled",
         "@getflywheel/local-components",
-        "@material-ui/core",
         "@octokit/rest",
         "@terascope/fetch-github-release",
-        "@types/react-select",
-        "babel-eslint",
-        "classnames",
         "dateformat",
         "electron-is",
         "fs-extra",
         "html-react-parser",
         "lodash",
         "npm-pack-all",
-        "prop-types",
-        "react",
-        "react-dom",
-        "react-router-dom",
         "react-select",
         "request",
         "validate-github-token"

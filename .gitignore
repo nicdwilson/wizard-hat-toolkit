@@ -74,3 +74,5 @@ typings/
 *.zip
 TODO.md
 
+wizard-hat-toolkit.log
+dist/

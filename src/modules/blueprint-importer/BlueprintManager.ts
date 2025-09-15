@@ -353,7 +353,7 @@ export class BlueprintManager {
 						plugins.push({
 							name: step.pluginData.slug, // Use slug as name for now
 							slug: step.pluginData.slug,
-							version: 'latest',
+							version: undefined, // Don't set 'latest' for WordPress.org plugins
 							active: step.options?.activate || true,
 							source: this.mapResourceToSource(step.pluginData.resource)
 						});
@@ -365,7 +365,7 @@ export class BlueprintManager {
 						themes.push({
 							name: step.themeData.slug, // Use slug as name for now
 							slug: step.themeData.slug,
-							version: 'latest',
+							version: undefined, // Don't set 'latest' for WordPress.org themes
 							active: step.options?.activate || true,
 							source: this.mapResourceToSource(step.themeData.resource)
 						});
