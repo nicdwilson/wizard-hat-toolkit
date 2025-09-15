@@ -260,29 +260,33 @@ export default function (context) {
 
 	ipcMain.on('import-blueprint', async (event, siteId, blueprintData, importOptions) => {
 		try {
-			console.log('Import blueprint IPC received:', { siteId, blueprintData, importOptions });
+			logger.info('MainProcess', 'Import blueprint IPC received', { siteId, importOptions });
 			
 			const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
-			console.log('Site found:', site?.name);
+			logger.info('MainProcess', 'Site found', { siteName: site?.name });
 			
 			const blueprintManager = new BlueprintManager(context);
 			
-			// Send initial progress
-			LocalMain.sendIPCEvent('blueprint-import-progress', {
-				pluginsInstalled: 0,
-				themesInstalled: 0,
-				settingsApplied: 0,
-				errors: []
-			});
+			// Create progress callback to send updates to renderer
+			const onProgress = (progress: any) => {
+				logger.debug('MainProcess', 'Blueprint import progress update', progress);
+				LocalMain.sendIPCEvent('blueprint-import-progress', progress);
+			};
 
-			console.log('Starting blueprint import...');
-			const result = await blueprintManager.importBlueprint(site, blueprintData, importOptions);
-			console.log('Blueprint import completed:', result);
+			logger.info('MainProcess', 'Starting blueprint import with progress tracking');
+			const result = await blueprintManager.importBlueprint(site, blueprintData, importOptions, onProgress);
+			logger.info('MainProcess', 'Blueprint import completed', { 
+				success: result.success, 
+				pluginsInstalled: result.results.pluginsInstalled,
+				themesInstalled: result.results.themesInstalled,
+				settingsApplied: result.results.settingsApplied,
+				sqlStepsExecuted: result.results.sqlStepsExecuted,
+				errorsCount: result.results.errors.length
+			});
 			
 			LocalMain.sendIPCEvent('blueprint-import-complete', result);
 		} catch (error) {
-			console.error('Blueprint import error:', error);
-			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
+			logger.error('MainProcess', 'Blueprint import error', { error: error.message });
 			LocalMain.sendIPCEvent('blueprint-import-error', { error: error.message });
 		}
 	});

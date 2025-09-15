@@ -1,6 +1,7 @@
 import * as LocalMain from '@getflywheel/local/main';
 import { BlueprintValidator } from './BlueprintValidator';
 import { BlueprintImporter } from './BlueprintImporter';
+import { ProgressTracker, ImportProgress } from './ProgressTracker';
 
 export interface BlueprintData {
 	version: string;
@@ -169,9 +170,9 @@ export class BlueprintManager {
 	}
 
 	/**
-	 * Import blueprint to site
+	 * Import blueprint to site with progress tracking
 	 */
-	async importBlueprint(site: any, blueprintData: BlueprintData, options: ImportOptions): Promise<{
+	async importBlueprint(site: any, blueprintData: BlueprintData, options: ImportOptions, onProgress?: (progress: ImportProgress) => void): Promise<{
 		success: boolean;
 		results: {
 			pluginsInstalled: number;
@@ -189,57 +190,91 @@ export class BlueprintManager {
 			errors: []
 		};
 
+		// Initialize progress tracker if callback provided
+		let progressTracker: ProgressTracker | null = null;
+		if (onProgress) {
+			progressTracker = new ProgressTracker(onProgress);
+			progressTracker.initialize(
+				blueprintData.plugins.length,
+				blueprintData.themes.length,
+				Object.keys(blueprintData.settings.woocommerce).length,
+				blueprintData.sqlSteps.length
+			);
+		}
+
 		try {
 			// Install plugins
-			for (const plugin of blueprintData.plugins) {
+			for (let i = 0; i < blueprintData.plugins.length; i++) {
+				const plugin = blueprintData.plugins[i];
 				try {
 					await this.importer.installPlugin(site, plugin, options);
 					results.pluginsInstalled++;
+					progressTracker?.updatePluginProgress(results.pluginsInstalled);
 				} catch (error) {
-					results.errors.push(`Failed to install plugin ${plugin.name}: ${error.message}`);
+					const errorMsg = `Failed to install plugin ${plugin.name}: ${error.message}`;
+					results.errors.push(errorMsg);
+					progressTracker?.updatePluginProgress(results.pluginsInstalled, errorMsg);
 				}
 			}
 
 			// Install themes
-			for (const theme of blueprintData.themes) {
+			for (let i = 0; i < blueprintData.themes.length; i++) {
+				const theme = blueprintData.themes[i];
 				try {
 					await this.importer.installTheme(site, theme, options);
 					results.themesInstalled++;
+					progressTracker?.updateThemeProgress(results.themesInstalled);
 				} catch (error) {
-					results.errors.push(`Failed to install theme ${theme.name}: ${error.message}`);
+					const errorMsg = `Failed to install theme ${theme.name}: ${error.message}`;
+					results.errors.push(errorMsg);
+					progressTracker?.updateThemeProgress(results.themesInstalled, errorMsg);
 				}
 			}
 
 			// Apply settings
-			for (const [key, value] of Object.entries(blueprintData.settings.woocommerce)) {
+			const settingsEntries = Object.entries(blueprintData.settings.woocommerce);
+			for (let i = 0; i < settingsEntries.length; i++) {
+				const [key, value] = settingsEntries[i];
 				try {
 					await this.importer.applySetting(site, key, value, options);
 					results.settingsApplied++;
+					progressTracker?.updateSettingsProgress(results.settingsApplied);
 				} catch (error) {
-					results.errors.push(`Failed to apply setting ${key}: ${error.message}`);
+					const errorMsg = `Failed to apply setting ${key}: ${error.message}`;
+					results.errors.push(errorMsg);
+					progressTracker?.updateSettingsProgress(results.settingsApplied, errorMsg);
 				}
 			}
 
 			// Execute SQL steps
-			for (const sqlStep of blueprintData.sqlSteps) {
+			for (let i = 0; i < blueprintData.sqlSteps.length; i++) {
+				const sqlStep = blueprintData.sqlSteps[i];
 				try {
 					await this.importer.runSQL(site, sqlStep.sql, options);
 					results.sqlStepsExecuted++;
+					progressTracker?.updateSqlProgress(results.sqlStepsExecuted);
 				} catch (error) {
-					results.errors.push(`Failed to execute SQL step ${sqlStep.name}: ${error.message}`);
+					const errorMsg = `Failed to execute SQL step ${sqlStep.name}: ${error.message}`;
+					results.errors.push(errorMsg);
+					progressTracker?.updateSqlProgress(results.sqlStepsExecuted, errorMsg);
 				}
 			}
+
+			// Mark as complete
+			progressTracker?.complete();
 
 			return {
 				success: results.errors.length === 0,
 				results
 			};
 		} catch (error) {
+			const errorMsg = `Import failed: ${error.message}`;
+			progressTracker?.fail(errorMsg);
 			return {
 				success: false,
 				results: {
 					...results,
-					errors: [...results.errors, `Import failed: ${error.message}`]
+					errors: [...results.errors, errorMsg]
 				}
 			};
 		}

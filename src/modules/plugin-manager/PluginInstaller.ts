@@ -255,11 +255,65 @@ export class PluginInstaller {
             await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command);
             this.logger.info('PluginInstaller', `WP-CLI command completed successfully for: ${originalPlugin.name}`);
         } catch (error) {
+            // Check if the error is due to plugin already being installed/active
+            if (this.isPluginAlreadyInstalledError(error.message, originalPlugin.name)) {
+                this.logger.info('PluginInstaller', `Plugin ${originalPlugin.name} is already installed and active, treating as success`);
+                return; // Treat as success
+            }
+            
             this.logger.error('PluginInstaller', `WP-CLI command failed for ${originalPlugin.name}`, { error: error.message });
             throw error;
         }
 
         this.logger.info('PluginInstaller', `Successfully installed plugin: ${originalPlugin.name}`);
+    }
+
+    /**
+     * Check if the error message indicates the plugin is already installed/active
+     */
+    private isPluginAlreadyInstalledError(errorMessage: string, pluginName: string): boolean {
+        const alreadyInstalledPatterns = [
+            `Plugin '${pluginName}' is already active`,
+            `Plugin '${pluginName}' is already installed`,
+            `Warning: Plugin '${pluginName}' is already active`,
+            `Warning: Plugin '${pluginName}' is already installed`,
+            `Error: Plugin '${pluginName}' is already active`,
+            `Error: Plugin '${pluginName}' is already installed`
+        ];
+        
+        return alreadyInstalledPatterns.some(pattern => 
+            errorMessage.toLowerCase().includes(pattern.toLowerCase())
+        );
+    }
+
+    /**
+     * Check if the error message indicates the theme is already installed
+     */
+    private isThemeAlreadyInstalledError(errorMessage: string, themeName: string): boolean {
+        const alreadyInstalledPatterns = [
+            `Theme '${themeName}' is already installed`,
+            `Warning: Theme '${themeName}' is already installed`,
+            `Error: Theme '${themeName}' is already installed`
+        ];
+        
+        return alreadyInstalledPatterns.some(pattern => 
+            errorMessage.toLowerCase().includes(pattern.toLowerCase())
+        );
+    }
+
+    /**
+     * Check if the error message indicates the theme is already active
+     */
+    private isThemeAlreadyActiveError(errorMessage: string, themeName: string): boolean {
+        const alreadyActivePatterns = [
+            `Theme '${themeName}' is already active`,
+            `Warning: Theme '${themeName}' is already active`,
+            `Error: Theme '${themeName}' is already active`
+        ];
+        
+        return alreadyActivePatterns.some(pattern => 
+            errorMessage.toLowerCase().includes(pattern.toLowerCase())
+        );
     }
 
     /**
@@ -278,13 +332,33 @@ export class PluginInstaller {
 
         this.logger.info('PluginInstaller', `Installing theme: ${originalTheme.name} with command: ${command.join(' ')}`);
 
-        await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command);
+        try {
+            await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command);
+        } catch (error) {
+            // Check if the error is due to theme already being installed
+            if (this.isThemeAlreadyInstalledError(error.message, originalTheme.name)) {
+                this.logger.info('PluginInstaller', `Theme ${originalTheme.name} is already installed, treating as success`);
+            } else {
+                this.logger.error('PluginInstaller', `WP-CLI theme install failed for ${originalTheme.name}`, { error: error.message });
+                throw error;
+            }
+        }
 
         // Activate theme if specified
         if (originalTheme.active && options.activate !== false) {
-            await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, [
-                'theme', 'activate', originalTheme.slug
-            ]);
+            try {
+                await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, [
+                    'theme', 'activate', originalTheme.slug
+                ]);
+            } catch (error) {
+                // Check if theme is already active
+                if (this.isThemeAlreadyActiveError(error.message, originalTheme.name)) {
+                    this.logger.info('PluginInstaller', `Theme ${originalTheme.name} is already active, treating as success`);
+                } else {
+                    this.logger.error('PluginInstaller', `WP-CLI theme activate failed for ${originalTheme.name}`, { error: error.message });
+                    throw error;
+                }
+            }
         }
 
         this.logger.info('PluginInstaller', `Successfully installed theme: ${originalTheme.name}`);

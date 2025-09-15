@@ -39,7 +39,7 @@ export class BlueprintImporter {
 			const pluginData = {
 				name: plugin.name,
 				slug: plugin.slug,
-				version: plugin.version || 'latest',
+				version: plugin.version || undefined, // Don't set 'latest' for WordPress.org plugins
 				active: plugin.active,
 				source: plugin.source as any
 			};
@@ -91,7 +91,7 @@ export class BlueprintImporter {
 			const themeData = {
 				name: theme.name,
 				slug: theme.slug,
-				version: theme.version || 'latest',
+				version: theme.version || undefined, // Don't set 'latest' for WordPress.org themes
 				active: theme.active,
 				source: theme.source as any
 			};
