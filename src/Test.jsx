@@ -157,7 +157,7 @@ export default class Wizardhat extends Component {
 				isOpen={this.state.showInstructions}
 				onRequestClose={this.hideInstructions}
 			>
-				<Title fontSize="xl">Great Success!</Title>
+				<Title fontSize="l">Great Success!</Title>
 				<div style={{ padding: "20px" }}>
 					<Text
 						fontSize="l"
@@ -179,7 +179,7 @@ export default class Wizardhat extends Component {
 				isOpen={this.state.showError}
 				onRequestClose={this.hideError}
 			>
-				<Title fontSize="xl">Much Sadness :(</Title>
+				<Title fontSize="l">Much Sadness :(</Title>
 				<div style={{ padding: "20px" }}>
 					<Text
 						fontSize="l"

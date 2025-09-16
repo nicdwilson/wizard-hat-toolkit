@@ -42,6 +42,10 @@
 ul.wizard-hat li {
     width: 100%;
     float: left;
+    font-family: var(--woo-font-family);
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--woo-gray-700);
 }
 
 div.gh-token input {
@@ -97,15 +101,6 @@ div#wootertiarynav .TertiaryNavItem.active {
 
 #list li {
     list-style: disc;
-    font-family: var(--woo-font-family);
-    font-size: 13px;
-    line-height: 1.25;
-    color: var(--woo-gray-700);
-}
-
-ul.wizard-hat li {
-    width: 100%;
-    float: left;
     font-family: var(--woo-font-family);
     font-size: 13px;
     line-height: 1.25;
@@ -192,16 +187,8 @@ button, input, select, textarea {
     white-space: normal !important;
     word-wrap: break-word !important;
     line-height: 1.4 !important;
-}
-
-/* Ensure list items in preview are left-aligned */
-div[style*="padding: '20px'"] ul li,
-div[style*="padding: 20px"] ul li {
-    text-align: left !important;
     display: block !important;
     width: 100% !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
 }
 
 /* Fix headings alignment in preview panel */
@@ -223,8 +210,9 @@ div[style*="padding: 20px"] ul li {
 .TextBase_2s61x_v14-2-3.TextBase.Title,
 div[class*="TextBase"][class*="Title"] {
     margin: 0 !important;
+    margin-left: 20px;
     margin-bottom: 16px !important;
-    padding: 0 !important;
+    padding: 16px !important;
     line-height: 1.2 !important;
 }
 
@@ -237,13 +225,6 @@ div[class*="TextBase"][class*="Title"] {
     white-space: normal !important;
     word-wrap: break-word !important;
     line-height: 1.4 !important;
-}
-
-/* Ensure all content in preview panel is left-aligned */
-div[style*="padding: '20px'"] *,
-div[style*="padding: 20px"] * {
-    text-align: left !important;
-    text-align-last: left !important;
 }
 
 /* Override LocalWP ButtonBase CSS custom properties to remove inner border */

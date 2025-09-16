@@ -181,8 +181,8 @@ export default class Wizardhat extends React.Component {
 				isOpen={this.state.showInstructions}
 				onRequestClose={this.hideInstructions}
 			>
-				<Title fontSize="xl">Great Success!</Title>
-				<div style={{ padding: "20px" }}>
+				<Title fontSize="l">Great Success!</Title>
+				<div style={{ padding: "20px " }}>
 					<Text
 						fontSize="l"
 						privateOptions={{
@@ -203,7 +203,7 @@ export default class Wizardhat extends React.Component {
 				isOpen={this.state.showError}
 				onRequestClose={this.hideError}
 			>
-				<Title fontSize="xl">Much Sadness :(</Title>
+				<Title fontSize="l">Much Sadness :(</Title>
 				<div style={{ padding: "20px" }}>
 					<Text
 						fontSize="l"
