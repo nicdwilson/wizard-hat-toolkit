@@ -1,7 +1,7 @@
 import Wizardhat from './Wizardhat';
-import fs from 'fs-extra';
+import fs from 'fs';
 import path from 'path';
-const packageJSON = fs.readJsonSync( path.join( __dirname, '../package.json' ) );
+const packageJSON = JSON.parse(fs.readFileSync( path.join( __dirname, '../package.json' ), 'utf8' ));
 const addonName = packageJSON['productName'];
 const addonID = packageJSON['slug'];
 

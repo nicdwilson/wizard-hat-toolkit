@@ -1,7 +1,7 @@
 {
     "name": "wizard-hat-toolkit",
     "productName": "Wizard Hat Toolkit",
-    "version": "1.5.1",
+    "version": "1.5.3",
     "author": "Will Brubaker & Nic Wilson",
     "keywords": [
         "local-addon"
@@ -70,7 +70,7 @@
         "validate-github-token": "^1.1.1"
     },
     "engines": {
-        "local-by-flywheel": "^5.0.0"
+        "local-by-flywheel": "^9.0.0"
     },
     "bundleDependencies": [
         "@getflywheel/local-components",

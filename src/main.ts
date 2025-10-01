@@ -19,7 +19,7 @@ import { BlueprintManager } from './modules/blueprint-importer/BlueprintManager'
 import { BlueprintValidator } from './modules/blueprint-importer/BlueprintValidator';
 
 // Import centralized logger
-import { Logger } from './utils/Logger';
+import { SimpleLogger } from './utils/SimpleLogger';
 export default function (context) {
 	console.log('[Wizard Hat Toolkit] Main process starting...');
 	
@@ -34,7 +34,7 @@ export default function (context) {
 
 	// Initialize centralized logger
 	console.log('[Wizard Hat Toolkit] Initializing logger...');
-	const logger = Logger.getInstance(context.environment.userDataPath);
+	const logger = SimpleLogger.getInstance(context.environment.userDataPath);
 	console.log('[Wizard Hat Toolkit] Logger initialized successfully');
 	let premiumPluginInfo = {};
 	let premiumPluginSelections = [];

@@ -252,8 +252,55 @@ export class PluginInstaller {
         this.logger.info('PluginInstaller', `WP-CLI command: ${command.join(' ')}`, { plugin: originalPlugin.name });
 
         try {
-            await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command);
-            this.logger.info('PluginInstaller', `WP-CLI command completed successfully for: ${originalPlugin.name}`);
+            // Add database connection parameters for LocalWP
+            const mysqlSocketPath = `/Users/nicw/Library/Application Support/Local/run/${this.context.site.id}/mysql/mysqld.sock`;
+            const dbHost = `localhost:${mysqlSocketPath}`;
+            
+            this.logger.debug('PluginInstaller', 'Using MySQL connection', {
+                siteId: this.context.site.id,
+                mysqlSocketPath,
+                dbHost
+            });
+
+            // Try multiple approaches for LocalWP MySQL connection
+            // Approach 1: Use environment variables
+            try {
+                await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command, {
+                    skipPlugins: false,
+                    skipThemes: false,
+                    env: {
+                        ...process.env,
+                        MYSQL_UNIX_PORT: mysqlSocketPath,
+                        MYSQL_HOST: 'localhost'
+                    }
+                });
+                this.logger.info('PluginInstaller', `WP-CLI command completed successfully for: ${originalPlugin.name}`);
+                return;
+            } catch (envError) {
+                this.logger.warn('PluginInstaller', 'Environment variables approach failed, trying alternative approach', { 
+                    error: envError.message,
+                    plugin: originalPlugin.name 
+                });
+            }
+
+            // Approach 2: Try without custom environment variables (use LocalWP defaults)
+            try {
+                await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command, {
+                    skipPlugins: false,
+                    skipThemes: false
+                });
+                this.logger.info('PluginInstaller', `WP-CLI command completed successfully for: ${originalPlugin.name} (using LocalWP defaults)`);
+                return;
+            } catch (defaultError) {
+                this.logger.warn('PluginInstaller', 'LocalWP defaults approach failed', { 
+                    error: defaultError.message,
+                    plugin: originalPlugin.name 
+                });
+            }
+
+            // If both approaches fail, throw the original error
+            throw new Error(`Database connection failed for plugin ${originalPlugin.name}. Both environment variables and LocalWP defaults failed.`);
+            
         } catch (error) {
             // Check if the error is due to plugin already being installed/active
             if (this.isPluginAlreadyInstalledError(error.message, originalPlugin.name)) {
@@ -333,7 +380,24 @@ export class PluginInstaller {
         this.logger.info('PluginInstaller', `Installing theme: ${originalTheme.name} with command: ${command.join(' ')}`);
 
         try {
-            await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command);
+            // Add database connection parameters for LocalWP
+            const mysqlSocketPath = `/Users/nicw/Library/Application Support/Local/run/${this.context.site.id}/mysql/mysqld.sock`;
+            
+            this.logger.debug('PluginInstaller', 'Using MySQL connection for theme install', {
+                siteId: this.context.site.id,
+                mysqlSocketPath
+            });
+
+            // Run WP-CLI with database connection and without skipping plugins/themes
+            await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, command, {
+                skipPlugins: false,
+                skipThemes: false,
+                env: {
+                    ...process.env,
+                    MYSQL_UNIX_PORT: mysqlSocketPath,
+                    MYSQL_HOST: 'localhost'
+                }
+            });
         } catch (error) {
             // Check if the error is due to theme already being installed
             if (this.isThemeAlreadyInstalledError(error.message, originalTheme.name)) {
@@ -347,9 +411,20 @@ export class PluginInstaller {
         // Activate theme if specified
         if (originalTheme.active && options.activate !== false) {
             try {
+                // Add database connection parameters for LocalWP
+                const mysqlSocketPath = `/Users/nicw/Library/Application Support/Local/run/${this.context.site.id}/mysql/mysqld.sock`;
+                
                 await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, [
                     'theme', 'activate', originalTheme.slug
-                ]);
+                ], {
+                    skipPlugins: false,
+                    skipThemes: false,
+                    env: {
+                        ...process.env,
+                        MYSQL_UNIX_PORT: mysqlSocketPath,
+                        MYSQL_HOST: 'localhost'
+                    }
+                });
             } catch (error) {
                 // Check if theme is already active
                 if (this.isThemeAlreadyActiveError(error.message, originalTheme.name)) {
@@ -403,9 +478,19 @@ export class PluginInstaller {
      */
     public async isPluginInstalled(pluginSlug: string): Promise<boolean> {
         try {
+            const mysqlSocketPath = `/Users/nicw/Library/Application Support/Local/run/${this.context.site.id}/mysql/mysqld.sock`;
+            
             const result = await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, [
                 'plugin', 'list', '--format=json'
-            ]);
+            ], {
+                skipPlugins: false,
+                skipThemes: false,
+                env: {
+                    ...process.env,
+                    MYSQL_UNIX_PORT: mysqlSocketPath,
+                    MYSQL_HOST: 'localhost'
+                }
+            });
             
             const plugins = JSON.parse(result);
             return plugins.some((plugin: any) => plugin.name === pluginSlug);
@@ -419,9 +504,19 @@ export class PluginInstaller {
      */
     public async isThemeInstalled(themeSlug: string): Promise<boolean> {
         try {
+            const mysqlSocketPath = `/Users/nicw/Library/Application Support/Local/run/${this.context.site.id}/mysql/mysqld.sock`;
+            
             const result = await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, [
                 'theme', 'list', '--format=json'
-            ]);
+            ], {
+                skipPlugins: false,
+                skipThemes: false,
+                env: {
+                    ...process.env,
+                    MYSQL_UNIX_PORT: mysqlSocketPath,
+                    MYSQL_HOST: 'localhost'
+                }
+            });
             
             const themes = JSON.parse(result);
             return themes.some((theme: any) => theme.name === themeSlug);
@@ -470,6 +565,17 @@ export class PluginInstaller {
      */
     private async setOptionWithJson(key: string, value: any): Promise<void> {
         try {
+            const mysqlSocketPath = `/Users/nicw/Library/Application Support/Local/run/${this.context.site.id}/mysql/mysqld.sock`;
+            const wpCliOptions = {
+                skipPlugins: false,
+                skipThemes: false,
+                env: {
+                    ...process.env,
+                    MYSQL_UNIX_PORT: mysqlSocketPath,
+                    MYSQL_HOST: 'localhost'
+                }
+            };
+
             // For simple values, use the standard approach
             if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
                 await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, [
@@ -477,7 +583,7 @@ export class PluginInstaller {
                     'set',
                     key,
                     String(value)
-                ]);
+                ], wpCliOptions);
                 return;
             }
 
@@ -491,17 +597,26 @@ export class PluginInstaller {
                 key,
                 '--format=json',
                 jsonValue
-            ]);
+            ], wpCliOptions);
 
         } catch (error) {
             // Fallback to standard approach if JSON format fails
             this.logger.warn('PluginInstaller', `JSON format failed for ${key}, falling back to string conversion`, { error: error.message });
+            const mysqlSocketPath = `/Users/nicw/Library/Application Support/Local/run/${this.context.site.id}/mysql/mysqld.sock`;
             await LocalMain.getServiceContainer().cradle.wpCli.run(this.context.site, [
                 'option',
                 'set',
                 key,
                 JSON.stringify(value)
-            ]);
+            ], {
+                skipPlugins: false,
+                skipThemes: false,
+                env: {
+                    ...process.env,
+                    MYSQL_UNIX_PORT: mysqlSocketPath,
+                    MYSQL_HOST: 'localhost'
+                }
+            });
         }
     }
 
