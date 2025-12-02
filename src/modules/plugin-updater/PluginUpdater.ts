@@ -11,8 +11,8 @@ export class PluginUpdater {
         this.premiumPluginSelections = premiumPluginSelections;
     }
 
-    async updatePlugins(site: any, updates: UpdateInfo[]): Promise<void> {
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Starting update process for ${updates.length} plugins`);
+    async updateSelectedPlugins(site: any, updates: UpdateInfo[]): Promise<void> {
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Starting update process for ${updates.length} selected plugins`);
         
         // Extract plugin slugs from updates
         const pluginSlugs = updates.map(update => update.plugin.name);
@@ -85,7 +85,7 @@ export class PluginUpdater {
                     "plugin", "install", plugin, "--activate", "--force"
                 ]);
                 
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully installed: ${plugin}`);
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully installed plugin: ${plugin} on site: ${site.id}`);
                 
                 // Clean up downloaded files for premium plugins (zip files)
                 if (zipFiles.includes(plugin)) {
@@ -131,58 +131,58 @@ export class PluginUpdater {
         return zipFiles;
     }
     
+    /**
+     * Get download path for a plugin from local repository
+     * Note: This method now returns the local file path instead of a GitHub URL
+     */
     private async getDownloadUrl(pluginSlug: string): Promise<string> {
-        const { Octokit } = require("@octokit/rest");
-        const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+        const fs = require('fs');
+        const path = require('path');
+
+        // Get the user-configured repository path
+        const repositoryPath = LocalMain.UserData.get('allPluginsRepositoryPath');
+        if (!repositoryPath) {
+            throw new Error('Repository path not configured. Please set up your repository path first.');
+        }
+
+        if (!fs.existsSync(repositoryPath)) {
+            throw new Error(`Repository path does not exist: ${repositoryPath}`);
+        }
+
+        // Construct the path to the plugin zip file
+        const pluginZipPath = path.join(repositoryPath, 'product-packages', pluginSlug, `${pluginSlug}.zip`);
         
-        const path = `product-packages/${pluginSlug}`;
-        
-        return new Promise((resolve, reject) => {
-            octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
-                owner: 'woocommerce',
-                repo: 'all-plugins',
-                path: path,
-            }).then(async ({ data }) => {
-                // Look for the zip file with the exact plugin slug name
-                for (const element of data) {
-                    if (pluginSlug + '.zip' === element.name) {
-                        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Found zip file for ${pluginSlug}: ${element.name}`);
-                        resolve(element.download_url);
-                        return;
-                    }
-                }
-                // If no zip file found, reject
-                reject(new Error(`Plugin zip file not found for ${pluginSlug}`));
-            }, function (err) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', `Failed to get download URL for ${pluginSlug}: ${err.message}`);
-                reject(err);
-            });
-        });
+        if (!fs.existsSync(pluginZipPath)) {
+            throw new Error(`Plugin zip file not found at ${pluginZipPath}`);
+        }
+
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Found zip file for ${pluginSlug} at: ${pluginZipPath}`);
+        return pluginZipPath;
     }
     
-    private async downloadZipFromGitHub(fileUrl: string, outputFile: string): Promise<string> {
-        const request = require('request');
+    /**
+     * Copy plugin zip file from local repository to output location
+     * Note: This method now copies from local repository instead of downloading from GitHub
+     */
+    private async downloadZipFromGitHub(filePath: string, outputFile: string): Promise<string> {
         const fs = require('fs');
+        const path = require('path');
+
+        if (!fs.existsSync(filePath)) {
+            throw new Error(`Plugin zip file not found at ${filePath}`);
+        }
+
+        // Ensure output directory exists
+        const outputDir = path.dirname(outputFile);
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        // Copy the file from local repository to output location
+        fs.copyFileSync(filePath, outputFile);
         
-        return new Promise((resolve, reject) => {
-            request.get(fileUrl, {
-                'auth': {
-                    'bearer': process.env.GITHUB_TOKEN
-                },
-                'headers': {
-                    'User-Agent': 'Wizard Hat Toolkit'
-                }
-            }).on("error", function (err: any) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', `Download request failed: ${err.message}`);
-                reject(err);
-            }).pipe(fs.createWriteStream(outputFile)).on('finish', () => {
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Download completed: ${outputFile}`);
-                resolve(outputFile);
-            }).on('error', function (err: any) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', `File write failed: ${err.message}`);
-                reject(err);
-            });
-        });
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Copied plugin zip from local repository to: ${outputFile}`);
+        return outputFile;
     }
     
     private async updatePremiumPlugin(site: any, update: UpdateInfo): Promise<void> {
@@ -319,60 +319,83 @@ export class PluginUpdater {
     }
 
     private async downloadLatestVersion(pluginName: string, outputFile: string): Promise<void> {
-        const { Octokit } = require("@octokit/rest");
-        const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-        
+        const fs = require('fs');
+        const path = require('path');
+
         try {
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Attempting to download ${pluginName} from GitHub`);
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Attempting to download ${pluginName} from local repository`);
             
-            // Get the plugin zip file from the all-plugins repository's product-packages directory
-            const { data } = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
-                owner: 'woocommerce',
-                repo: 'all-plugins',
-                path: `product-packages/${pluginName}`,
-            });
-            
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Found ${data.length} files in product-packages/${pluginName}`);
-            
-            // Find the zip file for this plugin
-            const zipFile = data.find((file: any) => file.name === `${pluginName}.zip`);
-            
-            if (!zipFile) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', `Plugin zip file not found for ${pluginName}. Available files: ${data.map((f: any) => f.name).join(', ')}`);
-                throw new Error(`Plugin zip file not found for ${pluginName}`);
+            // Get the user-configured repository path
+            const repositoryPath = LocalMain.UserData.get('allPluginsRepositoryPath');
+            if (!repositoryPath) {
+                throw new Error('Repository path not configured. Please set up your repository path first.');
             }
+
+            if (!fs.existsSync(repositoryPath)) {
+                throw new Error(`Repository path does not exist: ${repositoryPath}`);
+            }
+
+            // Construct the path to the plugin zip file
+            const pluginZipPath = path.join(repositoryPath, 'product-packages', pluginName, `${pluginName}.zip`);
             
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Found zip file: ${zipFile.name}, downloading to ${outputFile}`);
-            
-            // Download the zip file
-            const request = require('request');
-            const fs = require('fs');
-            
-            return new Promise((resolve, reject) => {
-                request.get(zipFile.download_url, {
-                    'auth': {
-                        'bearer': process.env.GITHUB_TOKEN
-                    },
-                    'headers': {
-                        'User-Agent': 'Wizard Hat Toolkit'
-                    }
-                }).on("error", function (err: any) {
-                    LocalMain.getServiceContainer().cradle.localLogger.log('error', `Download error for ${pluginName}: ${err.message}`);
-                    reject(err);
-                }).pipe(fs.createWriteStream(outputFile)).on('finish', () => {
-                    LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully downloaded ${pluginName} to ${outputFile}`);
-                    resolve();
-                });
-            });
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Looking for plugin at: ${pluginZipPath}`);
+
+            if (!fs.existsSync(pluginZipPath)) {
+                throw new Error(`Plugin zip file not found at ${pluginZipPath}. Please ensure the repository is up to date and contains the plugin.`);
+            }
+
+            // Ensure output directory exists
+            const outputDir = path.dirname(outputFile);
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+
+            // Copy the plugin zip file to the output path
+            fs.copyFileSync(pluginZipPath, outputFile);
+
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully copied ${pluginName} from local repository to ${outputFile}`);
         } catch (error) {
-            throw new Error(`Failed to download plugin ${pluginName} from GitHub: ${error.message}`);
+            throw new Error(`Failed to download plugin ${pluginName} from local repository: ${error.message}`);
         }
     }
 
     private isPremiumPlugin(plugin: any): boolean {
+        // Core WordPress/WooCommerce plugins that should always be treated as WordPress.org plugins
+        const corePlugins = [
+            'woocommerce', // WooCommerce core should be updated via WordPress.org
+            'woocommerce-admin',
+            'woocommerce-blocks',
+            'woocommerce-payments', // WooPayments should be updated via WordPress.org
+            'woocommerce-gateway-stripe',
+            'woocommerce-gateway-paypal',
+            'woocommerce-shipping-fedex',
+            'woocommerce-shipping-ups',
+            'woocommerce-shipping-usps',
+            'woocommerce-tax',
+            'woocommerce-bookings',
+            'woocommerce-subscriptions',
+            'woocommerce-memberships',
+            'woocommerce-product-bundles',
+            'woocommerce-composite-products',
+            'woocommerce-min-max-quantities',
+            'woocommerce-product-add-ons',
+            'woocommerce-table-rate-shipping',
+            'woocommerce-conditional-shipping-and-payments',
+            'woocommerce-checkout-field-editor'
+        ];
+        
+        // If it's a core plugin, it's NOT a premium plugin
+        if (corePlugins.includes(plugin.name) || corePlugins.includes(plugin.slug)) {
+            return false;
+        }
+        
         // Use the same logic as the existing system - check against premiumPluginSelections
-        const isPremium = (obj: any) => obj.label === plugin.name;
-        return this.premiumPluginSelections.some(isPremium);
+        // Only consider it premium if it's in our premium selections AND not a core plugin
+        return this.premiumPluginSelections.some(premium => 
+            (premium.label === plugin.name || premium.label === plugin.slug) &&
+            !corePlugins.includes(plugin.name) &&
+            !corePlugins.includes(plugin.slug)
+        );
     }
 
     private logUpdateAttempt(siteId: string, pluginName: string): void {

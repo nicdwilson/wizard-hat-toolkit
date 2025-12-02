@@ -31,6 +31,7 @@ export class PluginManager {
     private downloader: PluginDownloader | null = null;
     private githubToken: string | null = null;
     private initialized: boolean = false;
+    private currentSiteId: string | null = null;
     private logger: Logger;
 
     private constructor() {
@@ -57,8 +58,10 @@ export class PluginManager {
 
     /**
      * Initialize the plugin manager
+     * GitHub token is required for private repositories
+     * @param progressCallback Optional callback for progress updates
      */
-    public async initialize(context: any, githubToken?: string): Promise<void> {
+    public async initialize(context: any, githubToken?: string, progressCallback?: (status: string) => void): Promise<void> {
         console.log('[PluginManager] initialize called with:', { 
             hasContext: !!context, 
             hasGithubToken: !!githubToken,
@@ -72,16 +75,14 @@ export class PluginManager {
 
         this.githubToken = githubToken || process.env.GITHUB_TOKEN || null;
         console.log('[PluginManager] GitHub token available:', !!this.githubToken);
+        console.log('[PluginManager] Using Git-based access (no token required if git clone works)');
         
-        if (!this.githubToken) {
-            console.error('[PluginManager] No GitHub token available');
-            throw new Error('GitHub token is required to initialize PluginManager');
-        }
-
+        // Token is optional - we'll use Git commands first, API as fallback
+        
         try {
             console.log('[PluginManager] Initializing registry...');
-            // Initialize registry
-            await this.registry.initialize(this.githubToken);
+            // Initialize registry - token is required for private repos
+            await this.registry.initialize(this.githubToken, progressCallback);
             console.log('[PluginManager] Registry initialized successfully');
             
             this.initialized = true;
@@ -138,8 +139,25 @@ export class PluginManager {
             this.logger.info('PluginManager', 'Installation results', { results });
             return results;
         } catch (error) {
-            this.logger.error('PluginManager', 'Error in installPlugins', { error: error.message });
-            throw error;
+            // Provide more helpful error messages for common issues
+            if (error.message.includes('WordPress is not properly installed')) {
+                this.logger.error('PluginManager', 'WordPress installation validation failed', { 
+                    error: error.message,
+                    siteId: site?.id,
+                    sitePath: site?.path
+                });
+                throw new Error(`Cannot install plugins: ${error.message}`);
+            } else if (error.message.includes('This does not seem to be a WordPress installation')) {
+                this.logger.error('PluginManager', 'WP-CLI detected invalid WordPress installation', { 
+                    error: error.message,
+                    siteId: site?.id,
+                    sitePath: site?.path
+                });
+                throw new Error(`Cannot install plugins: WordPress installation appears to be incomplete or corrupted at ${site?.path}. Please check the site in LocalWP and ensure WordPress is properly installed.`);
+            } else {
+                this.logger.error('PluginManager', 'Error in installPlugins', { error: error.message });
+                throw error;
+            }
         }
     }
 
@@ -401,7 +419,16 @@ export class PluginManager {
             throw new Error('PluginManager must be initialized before use');
         }
 
-        if (!this.installer || !this.downloader) {
+        // Check if we need to recreate installer/downloader for a different site
+        const siteId = site?.id;
+        if (!this.installer || !this.downloader || this.currentSiteId !== siteId) {
+            this.logger.info('PluginManager', 'Creating installer and downloader for site', { 
+                siteId, 
+                previousSiteId: this.currentSiteId,
+                hasInstaller: !!this.installer,
+                hasDownloader: !!this.downloader
+            });
+
             // Get the correct user data path - use the same path as our logging
             const userDataPath = path.join(process.env.HOME || '', 'Library', 'Application Support', 'Local');
             
@@ -412,10 +439,12 @@ export class PluginManager {
                 githubToken: this.githubToken || undefined
             };
 
-            this.logger.info('PluginManager', 'Initializing installer and downloader', { userDataPath });
+            // Token is optional - Git will be used first, API as fallback
+            this.installer = new PluginInstaller(context, this.githubToken || undefined);
+            this.downloader = new PluginDownloader(context.userDataPath, this.githubToken || undefined);
+            this.currentSiteId = siteId;
 
-            this.installer = new PluginInstaller(context, this.githubToken!);
-            this.downloader = new PluginDownloader(context.userDataPath, this.githubToken!);
+            this.logger.info('PluginManager', 'Installer and downloader created for site', { siteId });
         }
     }
 

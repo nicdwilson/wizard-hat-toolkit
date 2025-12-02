@@ -17,22 +17,20 @@ export default class PluginUpdates extends React.Component {
 		this.state = {
 			siteId: props.match.params.siteID,
 			updateStatus: null,
-			lastUpdateCheck: null,
-			updatedPlugins: [],
 			availableUpdates: [],
+			selectedUpdates: [],
 			updateError: null,
 			showSpinner: false,
 			statusMessage: '',
-			settings: {
-				autoUpdate: true,
-				updateOnStartup: true,
-				notifyOnUpdates: true,
-				excludedPlugins: [],
-			},
+			cloneStatus: null,
+			cloneError: null,
+			cloneHelpText: null,
 		};
 		this.checkUpdates = this.checkUpdates.bind(this);
-		this.applyUpdates = this.applyUpdates.bind(this);
-		this.updateSettings = this.updateSettings.bind(this);
+		this.applySelectedUpdates = this.applySelectedUpdates.bind(this);
+		this.toggleUpdateSelection = this.toggleUpdateSelection.bind(this);
+		this.selectAllUpdates = this.selectAllUpdates.bind(this);
+		this.deselectAllUpdates = this.deselectAllUpdates.bind(this);
 	}
 
 	componentDidMount() {
@@ -43,9 +41,10 @@ export default class PluginUpdates extends React.Component {
 			console.log('[PluginUpdates] Received plugins-updated event:', data);
 			this.setState({
 				updateStatus: "updated",
-				updatedPlugins: data.plugins,
 				showSpinner: false,
-				statusMessage: `Successfully updated ${data.updatedCount} plugin(s)`
+				statusMessage: `Successfully updated ${data.updatedCount} plugin(s)`,
+				availableUpdates: [],
+				selectedUpdates: []
 			});
 		});
 
@@ -53,7 +52,8 @@ export default class PluginUpdates extends React.Component {
 			console.log('[PluginUpdates] Received updates-available event:', data);
 			this.setState({
 				updateStatus: "available",
-				availableUpdates: data.plugins,
+				availableUpdates: data.updates,
+				selectedUpdates: [], // Reset selections
 				showSpinner: false,
 				statusMessage: `Found ${data.availableCount} plugin(s) with updates available`
 			});
@@ -64,16 +64,16 @@ export default class PluginUpdates extends React.Component {
 			this.setState({
 				updateStatus: "no-updates",
 				showSpinner: false,
-				statusMessage: `No updates available for ${data.pluginCount} marketplace plugin(s)`
+				statusMessage: `No updates available for ${data.pluginCount} plugin(s)`
 			});
 		});
 
-		ipcRenderer.on("no-marketplace-plugins", (event, data) => {
-			console.log('[PluginUpdates] Received no-marketplace-plugins event:', data);
+		ipcRenderer.on("no-plugins-found", (event, data) => {
+			console.log('[PluginUpdates] Received no-plugins-found event:', data);
 			this.setState({
 				updateStatus: "no-plugins",
 				showSpinner: false,
-				statusMessage: 'No WooCommerce Marketplace plugins found'
+				statusMessage: 'No plugins found'
 			});
 		});
 
@@ -87,34 +87,45 @@ export default class PluginUpdates extends React.Component {
 			});
 		});
 
-		ipcRenderer.on("settings-updated", () => {
-			// Settings were updated, could refresh UI if needed
+		// Listen for repository clone progress
+		ipcRenderer.on("repository-clone-progress", (event, data) => {
+			this.setState({
+				cloneStatus: data.status,
+				cloneError: null,
+				cloneHelpText: null,
+			});
 		});
 
-		// Get current settings
-		ipcRenderer.send("get-plugin-settings");
-		ipcRenderer.on("plugin-settings", (event, settings) => {
-			this.setState({ settings });
-			
-			// Check for updates when tab is accessed (if enabled and site is running)
-			if (settings.updateOnStartup && 
-				this.props.siteStatuses && 
-				this.props.siteStatuses[this.state.siteId] === "running") {
-				setTimeout(() => {
-					this.checkUpdates();
-				}, 1000); // Small delay to ensure component is fully mounted
-			}
+		ipcRenderer.on("repository-clone-complete", (event, data) => {
+			this.setState({
+				cloneStatus: null,
+				cloneError: null,
+				cloneHelpText: null,
+			});
 		});
+
+		ipcRenderer.on("repository-clone-error", (event, data) => {
+			this.setState({
+				cloneStatus: null,
+				cloneError: data.error,
+				cloneHelpText: data.helpText,
+			});
+		});
+
+		// Trigger repository initialization when component mounts (tab is opened)
+		// This ensures the repository is ready when user clicks "Check for Updates"
+		ipcRenderer.send("get-premium-plugin-selections");
 	}
 
 	componentWillUnmount() {
 		ipcRenderer.removeAllListeners("plugins-updated");
 		ipcRenderer.removeAllListeners("updates-available");
 		ipcRenderer.removeAllListeners("no-updates-available");
-		ipcRenderer.removeAllListeners("no-marketplace-plugins");
+		ipcRenderer.removeAllListeners("no-plugins-found");
 		ipcRenderer.removeAllListeners("update-error");
-		ipcRenderer.removeAllListeners("settings-updated");
-		ipcRenderer.removeAllListeners("plugin-settings");
+		ipcRenderer.removeAllListeners("repository-clone-progress");
+		ipcRenderer.removeAllListeners("repository-clone-complete");
+		ipcRenderer.removeAllListeners("repository-clone-error");
 	}
 
 	checkUpdates() {
@@ -135,13 +146,15 @@ export default class PluginUpdates extends React.Component {
 		this.setState({ 
 			showSpinner: true, 
 			updateStatus: null,
-			statusMessage: 'Checking for plugin updates...'
+			statusMessage: 'Checking for plugin updates...',
+			availableUpdates: [],
+			selectedUpdates: []
 		});
 		ipcRenderer.send("check-plugin-updates", this.state.siteId);
 	}
 
-	applyUpdates() {
-		console.log('[PluginUpdates] applyUpdates() called');
+	applySelectedUpdates() {
+		console.log('[PluginUpdates] applySelectedUpdates() called');
 		
 		// Only allow updates if site is running
 		if (this.props.siteStatuses && this.props.siteStatuses[this.state.siteId] !== "running") {
@@ -154,19 +167,102 @@ export default class PluginUpdates extends React.Component {
 			return;
 		}
 		
+		if (this.state.selectedUpdates.length === 0) {
+			this.setState({
+				updateStatus: "error",
+				updateError: "Please select at least one plugin to update",
+				showSpinner: false
+			});
+			return;
+		}
+		
 		console.log('[PluginUpdates] Starting plugin updates for site:', this.state.siteId);
 		this.setState({ 
 			showSpinner: true, 
 			updateStatus: null,
-			statusMessage: 'Applying plugin updates...'
+			statusMessage: `Applying updates to ${this.state.selectedUpdates.length} plugin(s)...`
 		});
-		ipcRenderer.send("apply-plugin-updates", this.state.siteId);
+		ipcRenderer.send("apply-selected-updates", this.state.siteId, this.state.selectedUpdates);
 	}
 
-	updateSettings(newSettings) {
-		const updatedSettings = { ...this.state.settings, ...newSettings };
-		this.setState({ settings: updatedSettings });
-		ipcRenderer.send("update-plugin-settings", updatedSettings);
+	toggleUpdateSelection(update) {
+		const selectedUpdates = [...this.state.selectedUpdates];
+		const index = selectedUpdates.findIndex(selected => selected.name === update.name);
+		
+		if (index >= 0) {
+			selectedUpdates.splice(index, 1);
+		} else {
+			selectedUpdates.push(update);
+		}
+		
+		this.setState({ selectedUpdates });
+	}
+
+	selectAllUpdates() {
+		this.setState({ selectedUpdates: [...this.state.availableUpdates] });
+	}
+
+	deselectAllUpdates() {
+		this.setState({ selectedUpdates: [] });
+	}
+
+	isUpdateSelected(update) {
+		return this.state.selectedUpdates.some(selected => selected.name === update.name);
+	}
+
+	renderUpdateSelection() {
+		if (this.state.updateStatus !== "available") return null;
+
+		return (
+			<Card>
+				<Title>Available Updates</Title>
+				<Text>
+					Select the plugins you want to update:
+				</Text>
+				
+				<div style={{ margin: "1em 0" }}>
+					<Button
+						onClick={this.selectAllUpdates}
+						className="woo button"
+						style={{ marginRight: "0.5em" }}
+					>
+						Select All
+					</Button>
+					<Button
+						onClick={this.deselectAllUpdates}
+						className="woo button"
+					>
+						Deselect All
+					</Button>
+				</div>
+
+				<div style={{ margin: "1em 0" }}>
+					{this.state.availableUpdates.map((update, index) => (
+						<div key={index} style={{ margin: "0.5em 0", padding: "0.5em", border: "1px solid #ddd", borderRadius: "4px" }}>
+							<Checkbox
+								label={`${update.name} (${update.isMarketplace ? 'Marketplace' : 'WordPress.org'})`}
+								checked={this.isUpdateSelected(update)}
+								onChange={() => this.toggleUpdateSelection(update)}
+							/>
+							<Text fontSize="s" style={{ marginLeft: "1.5em", color: "#666" }}>
+								{update.currentVersion} → {update.newVersion}
+							</Text>
+						</div>
+					))}
+				</div>
+
+				<div style={{ margin: "1em 0" }}>
+					<Button
+						onClick={this.applySelectedUpdates}
+						className="woo button"
+						disabled={this.state.selectedUpdates.length === 0 || this.state.showSpinner}
+					>
+						Update Selected Plugins ({this.state.selectedUpdates.length})
+						{this.state.showSpinner && <Spinner />}
+					</Button>
+				</div>
+			</Card>
+		);
 	}
 
 	renderUpdateStatus() {
@@ -176,32 +272,10 @@ export default class PluginUpdates extends React.Component {
 			case "updated":
 				return (
 					<Card>
-						<Title>Plugins Updated</Title>
+						<Title>Plugins Updated Successfully</Title>
 						<Text>
-							Successfully updated {this.state.updatedPlugins.length} plugins:
+							{this.state.statusMessage}
 						</Text>
-						<ul>
-							{this.state.updatedPlugins.map((plugin, index) => (
-								<li key={index}>{plugin}</li>
-							))}
-						</ul>
-					</Card>
-				);
-			case "available":
-				return (
-					<Card>
-						<Title>Updates Available</Title>
-						<Text>
-							{this.state.availableUpdates.length} plugins have updates available:
-						</Text>
-						<ul>
-							{this.state.availableUpdates.map((plugin, index) => (
-								<li key={index}>{plugin}</li>
-							))}
-						</ul>
-						<Button onClick={this.applyUpdates} className="woo button">
-							Update All Plugins
-						</Button>
 					</Card>
 				);
 			case "no-updates":
@@ -209,16 +283,16 @@ export default class PluginUpdates extends React.Component {
 					<Card>
 						<Title>No Updates Available</Title>
 						<Text>
-							All WooCommerce Marketplace plugins are up to date.
+							All plugins are up to date.
 						</Text>
 					</Card>
 				);
 			case "no-plugins":
 				return (
 					<Card>
-						<Title>No Marketplace Plugins Found</Title>
+						<Title>No Plugins Found</Title>
 						<Text>
-							No WooCommerce Marketplace plugins were found. Install some plugins via the Plugin Management tab to enable automatic updates.
+							No plugins were found on this site.
 						</Text>
 					</Card>
 				);
@@ -237,44 +311,6 @@ export default class PluginUpdates extends React.Component {
 		}
 	}
 
-	renderSettings() {
-		return (
-			<Card>
-				<Title>Update Settings</Title>
-				<div style={{ margin: "1em 0" }}>
-					<Checkbox
-						label="Enable automatic updates"
-						checked={this.state.settings.autoUpdate}
-						onChange={(value) =>
-							this.updateSettings({ autoUpdate: value })
-						}
-					/>
-				</div>
-				<div style={{ margin: "1em 0" }}>
-					<Checkbox
-						label="Check for updates when accessing this tab (if site is running)"
-						checked={this.state.settings.updateOnStartup}
-						onChange={(value) =>
-							this.updateSettings({ updateOnStartup: value })
-						}
-					/>
-					<Text fontSize="s" style={{ marginLeft: "1.5em", color: "#666" }}>
-						When enabled, updates will be checked automatically when you visit this tab, but only if the site is running.
-					</Text>
-				</div>
-				<div style={{ margin: "1em 0" }}>
-					<Checkbox
-						label="Show notifications for available updates"
-						checked={this.state.settings.notifyOnUpdates}
-						onChange={(value) =>
-							this.updateSettings({ notifyOnUpdates: value })
-						}
-					/>
-				</div>
-			</Card>
-		);
-	}
-
 	renderSpinner() {
 		if (this.state.showSpinner) {
 			return <Spinner />;
@@ -282,14 +318,42 @@ export default class PluginUpdates extends React.Component {
 		return null;
 	}
 
+	renderCloneStatus() {
+		if (this.state.cloneStatus) {
+			return (
+				<Card style={{ marginBottom: "1em", backgroundColor: "#f0f8ff" }}>
+					<Text fontSize="s" style={{ color: "#0066cc" }}>
+						{this.state.cloneStatus}
+					</Text>
+					{this.renderSpinner()}
+				</Card>
+			);
+		}
+		if (this.state.cloneError) {
+			return (
+				<Card style={{ marginBottom: "1em", backgroundColor: "#fff5f5" }}>
+					<Text fontSize="s" style={{ color: "#cc0000", fontWeight: "bold", marginBottom: "0.5em" }}>
+						Repository Error: {this.state.cloneError}
+					</Text>
+					{this.state.cloneHelpText && (
+						<Text fontSize="s" style={{ color: "#666", whiteSpace: "pre-line" }}>
+							{this.state.cloneHelpText}
+						</Text>
+					)}
+				</Card>
+			);
+		}
+		return null;
+	}
+
 	render() {
 		return (
 			<Container>
+				{this.renderCloneStatus()}
 				<Card>
 					<Title>Plugin Updates</Title>
 					<Text>
-						Manage automatic updates for WooCommerce Marketplace plugins
-						installed via the Plugin Management module.
+						Check for and update WordPress plugins on this site.
 					</Text>
 					{this.state.statusMessage && (
 						<Text fontSize="s" style={{ 
@@ -319,11 +383,11 @@ export default class PluginUpdates extends React.Component {
 
 				<Divider />
 
-				{this.renderUpdateStatus()}
+				{this.renderUpdateSelection()}
 
 				<Divider />
 
-				{this.renderSettings()}
+				{this.renderUpdateStatus()}
 			</Container>
 		);
 	}

@@ -25,7 +25,7 @@ export class PluginDetector {
         this.premiumPluginSelections = premiumPluginSelections;
     }
 
-    async detectMarketplacePlugins(site: any): Promise<PluginInfo[]> {
+    async detectAllPlugins(site: any): Promise<PluginInfo[]> {
         try {
             // Use WP-CLI to get installed plugins
             const result = await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
@@ -33,44 +33,76 @@ export class PluginDetector {
             ]);
             
             const plugins = JSON.parse(result);
-            const marketplacePlugins: PluginInfo[] = [];
+            const allPlugins: PluginInfo[] = [];
             
             for (const plugin of plugins) {
-                if (this.isMarketplacePlugin(plugin)) {
-                    // Get the actual plugin version from WordPress
-                    const versionResult = await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-                        'plugin', 'get', plugin.name, '--field=version'
-                    ]);
-                    
-                    marketplacePlugins.push({
-                        name: plugin.name,
-                        slug: plugin.slug,
-                        version: versionResult.trim(),
-                        status: plugin.status,
-                        mainFile: plugin.name + '.php', // Default main file
-                        isMarketplace: true
-                    });
+                // Skip inactive plugins and core WordPress plugins
+                if (plugin.status === 'inactive' || plugin.name === 'hello') {
+                    continue;
                 }
+                
+                // Get the actual plugin version from WordPress
+                const versionResult = await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                    'plugin', 'get', plugin.name, '--field=version'
+                ]);
+                
+                const isMarketplace = this.isMarketplacePlugin(plugin);
+                
+                allPlugins.push({
+                    name: plugin.name,
+                    slug: plugin.slug,
+                    version: versionResult.trim(),
+                    status: plugin.status,
+                    mainFile: plugin.name + '.php', // Default main file
+                    isMarketplace: isMarketplace
+                });
             }
             
-            return marketplacePlugins;
+            return allPlugins;
         } catch (error) {
             LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `Failed to detect marketplace plugins: ${error.message}`
+                `Failed to detect plugins: ${error.message}`
             );
             return [];
         }
     }
     
     private isMarketplacePlugin(plugin: any): boolean {
-        // Check if plugin was installed via our plugin management system
-        // This could be tracked by:
-        // 1. Plugin author (WooCommerce)
-        // 2. Custom meta data we add during installation
-        // 3. Plugin slug matching our premium plugin list
+        // Core WordPress/WooCommerce plugins that should always be treated as WordPress.org plugins
+        const corePlugins = [
+            'woocommerce', // WooCommerce core should be updated via WordPress.org
+            'woocommerce-admin',
+            'woocommerce-blocks',
+            'woocommerce-payments', // WooPayments should be updated via WordPress.org
+            'woocommerce-gateway-stripe',
+            'woocommerce-gateway-paypal',
+            'woocommerce-shipping-fedex',
+            'woocommerce-shipping-ups',
+            'woocommerce-shipping-usps',
+            'woocommerce-tax',
+            'woocommerce-bookings',
+            'woocommerce-subscriptions',
+            'woocommerce-memberships',
+            'woocommerce-product-bundles',
+            'woocommerce-composite-products',
+            'woocommerce-min-max-quantities',
+            'woocommerce-product-add-ons',
+            'woocommerce-table-rate-shipping',
+            'woocommerce-conditional-shipping-and-payments',
+            'woocommerce-checkout-field-editor'
+        ];
         
+        // If it's a core plugin, it's NOT a marketplace plugin
+        if (corePlugins.includes(plugin.name) || corePlugins.includes(plugin.slug)) {
+            return false;
+        }
+        
+        // Check if plugin was installed via our plugin management system
+        // Only consider it marketplace if it's in our premium selections AND not a core plugin
         return this.premiumPluginSelections.some(premium => 
-            premium.label === plugin.name || premium.label === plugin.slug
+            (premium.label === plugin.name || premium.label === plugin.slug) &&
+            !corePlugins.includes(plugin.name) &&
+            !corePlugins.includes(plugin.slug)
         );
     }
 

@@ -18,8 +18,9 @@ export class PluginDownloader {
     private userDataPath: string;
     private logger: Logger;
 
-    constructor(userDataPath: string, githubToken: string) {
+    constructor(userDataPath: string, githubToken?: string | null) {
         this.userDataPath = userDataPath;
+        // Token is optional - Git will be used first, API as fallback
         this.githubClient = new GitHubClient(githubToken);
         this.registry = PluginRegistry.getInstance();
         this.logger = Logger.getInstance(userDataPath);

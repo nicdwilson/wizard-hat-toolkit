@@ -20,6 +20,31 @@ import { BlueprintValidator } from './modules/blueprint-importer/BlueprintValida
 
 // Import centralized logger
 import { SimpleLogger } from './utils/SimpleLogger';
+
+/**
+ * Get helpful installation instructions based on error message
+ */
+function getGitInstallationHelp(errorMessage: string): string {
+	if (errorMessage.includes('Git command line tools are not installed') || errorMessage.includes('command not found')) {
+		return `Git is not installed or not accessible. Please install Git:
+		
+macOS: Install Xcode Command Line Tools by running: xcode-select --install
+Or download Git from: https://git-scm.com/download/mac
+
+After installation, verify by running: git --version`;
+	} else if (errorMessage.includes('authentication') || errorMessage.includes('permission denied')) {
+		return `Git authentication failed. Please configure Git with your credentials:
+
+1. Set your name: git config --global user.name "Your Name"
+2. Set your email: git config --global user.email "your.email@example.com"
+
+For private repositories, you may need to set up SSH keys or use a personal access token.`;
+	} else if (errorMessage.includes('timeout')) {
+		return `The repository clone timed out. Please check your internet connection and try again.`;
+	}
+	return `Please check the error message above and ensure Git is properly installed and configured.`;
+}
+
 export default function (context) {
 	console.log('[Wizard Hat Toolkit] Main process starting...');
 	
@@ -124,7 +149,8 @@ export default function (context) {
 		logger.info('MainProcess', 'Site found', { 
 			siteId: site?.id, 
 			siteName: site?.name,
-			sitePath: site?.path
+			sitePath: site?.path,
+			fullSiteObject: site
 		});
 		
 		try {
@@ -151,72 +177,7 @@ export default function (context) {
 	});
 
 	// Plugin Update Handlers
-	ipcMain.on('check-plugin-updates', async (event, siteId) => {
-		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
-		
-		try {
-			const detector = new PluginDetector(premiumPluginSelections);
-			const checker = new UpdateChecker();
-			const updater = new PluginUpdater(context, premiumPluginSelections);
-			
-			// Detect marketplace plugins
-			const marketplacePlugins = await detector.detectMarketplacePlugins(site);
-			
-			if (marketplacePlugins.length > 0) {
-				// Check for updates
-				const availableUpdates = await checker.checkForUpdates(site, marketplacePlugins);
-				
-				if (availableUpdates.length > 0) {
-					// Update plugins if auto-update is enabled
-					if (UpdateSettingsManager.isAutoUpdateEnabled()) {
-						await updater.updatePlugins(site, availableUpdates);
-						
-						LocalMain.sendIPCEvent('plugins-updated', {
-							siteId,
-							updatedCount: availableUpdates.length,
-							plugins: availableUpdates.map(u => u.plugin.name)
-						});
-						return; // Exit early after successful updates
-					} else {
-						// Just notify about available updates
-						LocalMain.sendIPCEvent('updates-available', {
-							siteId,
-							availableCount: availableUpdates.length,
-							plugins: availableUpdates.map(u => u.plugin.name)
-						});
-						return; // Exit early after notifying about available updates
-					}
-				} else {
-					// No updates available
-					LocalMain.sendIPCEvent('no-updates-available', {
-						siteId,
-						pluginCount: marketplacePlugins.length
-					});
-				}
-			} else {
-				// No marketplace plugins found
-				LocalMain.sendIPCEvent('no-marketplace-plugins', {
-					siteId
-				});
-			}
-			
-			// Update last check time
-			UpdateSettingsManager.setLastUpdateCheck(new Date());
-		} catch (error) {
-			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
-			LocalMain.sendIPCEvent('update-error', { siteId, error: error.message });
-		}
-	});
 
-	ipcMain.on('update-plugin-settings', async (event, settings) => {
-		UpdateSettingsManager.updateSettings(settings);
-		LocalMain.sendIPCEvent('settings-updated');
-	});
-
-	ipcMain.on('get-plugin-settings', () => {
-		const settings = UpdateSettingsManager.getSettings();
-		LocalMain.sendIPCEvent('plugin-settings', settings);
-	});
 
 	// Blueprint Import Handlers
 	ipcMain.on('validate-blueprint-content', async (event, blueprintContent) => {
@@ -291,50 +252,70 @@ export default function (context) {
 		}
 	});
 
-	ipcMain.on('apply-plugin-updates', async (event, siteId) => {
-		logger.info('MainProcess', 'apply-plugin-updates IPC event received', { siteId });
+	ipcMain.on('check-plugin-updates', async (event, siteId) => {
+		logger.info('MainProcess', 'check-plugin-updates IPC event received', { siteId });
 		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
 		
 		try {
-			console.log('[Main] Creating detector, checker, and updater instances');
+			// Initialize PluginManager if not already done (for repository access)
+			if (!pluginManager.isInitialized) {
+				// Send progress updates to renderer
+				const progressCallback = (status: string) => {
+					LocalMain.sendIPCEvent('repository-clone-progress', { status });
+				};
+				
+				try {
+					await pluginManager.initialize(context, process.env.GITHUB_TOKEN, progressCallback);
+					LocalMain.sendIPCEvent('repository-clone-complete', { success: true });
+				} catch (error) {
+					LocalMain.sendIPCEvent('repository-clone-error', { 
+						error: error.message,
+						helpText: getGitInstallationHelp(error.message)
+					});
+					throw error;
+				}
+			}
+			
+			console.log('[Main] Creating detector and checker instances');
 			const detector = new PluginDetector(premiumPluginSelections);
 			const checker = new UpdateChecker();
-			const updater = new PluginUpdater(context, premiumPluginSelections);
 			
-			// Detect marketplace plugins
-			console.log('[Main] Detecting marketplace plugins...');
-			const marketplacePlugins = await detector.detectMarketplacePlugins(site);
-			console.log('[Main] Found marketplace plugins:', marketplacePlugins.length);
+			// Detect all plugins
+			console.log('[Main] Detecting all plugins...');
+			const allPlugins = await detector.detectAllPlugins(site);
+			console.log('[Main] Found plugins:', allPlugins.length);
 			
-			if (marketplacePlugins.length > 0) {
+			if (allPlugins.length > 0) {
 				// Check for updates
 				console.log('[Main] Checking for updates...');
-				const availableUpdates = await checker.checkForUpdates(site, marketplacePlugins);
+				const availableUpdates = await checker.checkForUpdates(site, allPlugins);
 				console.log('[Main] Available updates:', availableUpdates.length);
 				
 				if (availableUpdates.length > 0) {
-					// Apply updates
-					console.log('[Main] Applying updates...');
-					await updater.updatePlugins(site, availableUpdates);
-					console.log('[Main] Updates completed, sending success event');
-					
-					LocalMain.sendIPCEvent('plugins-updated', {
+					// Send available updates to UI for selection
+					console.log('[Main] Sending available updates to UI');
+					LocalMain.sendIPCEvent('updates-available', {
 						siteId,
-						updatedCount: availableUpdates.length,
-						plugins: availableUpdates.map(u => u.plugin.name)
+						availableCount: availableUpdates.length,
+						updates: availableUpdates.map(update => ({
+							name: update.plugin.name,
+							currentVersion: update.plugin.version,
+							newVersion: update.updateInfo.new_version,
+							isMarketplace: update.plugin.isMarketplace
+						}))
 					});
 				} else {
 					// No updates available
 					console.log('[Main] No updates available, sending no-updates event');
 					LocalMain.sendIPCEvent('no-updates-available', {
 						siteId,
-						pluginCount: marketplacePlugins.length
+						pluginCount: allPlugins.length
 					});
 				}
 			} else {
-				// No marketplace plugins found
-				console.log('[Main] No marketplace plugins found, sending no-plugins event');
-				LocalMain.sendIPCEvent('no-marketplace-plugins', {
+				// No plugins found
+				console.log('[Main] No plugins found, sending no-plugins event');
+				LocalMain.sendIPCEvent('no-plugins-found', {
 					siteId
 				});
 			}
@@ -342,7 +323,49 @@ export default function (context) {
 			// Update last check time
 			UpdateSettingsManager.setLastUpdateCheck(new Date());
 		} catch (error) {
-			console.error('[Main] Error in apply-plugin-updates:', error);
+			console.error('[Main] Error in check-plugin-updates:', error);
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
+			LocalMain.sendIPCEvent('update-error', { siteId, error: error.message });
+		}
+	});
+
+	ipcMain.on('apply-selected-updates', async (event, siteId, selectedUpdates) => {
+		logger.info('MainProcess', 'apply-selected-updates IPC event received', { siteId, selectedUpdates });
+		const site = LocalMain.getServiceContainer().cradle.siteData.getSite(siteId);
+		
+		try {
+			console.log('[Main] Creating updater instance');
+			const updater = new PluginUpdater(context, premiumPluginSelections);
+			
+			// Convert selected updates back to UpdateInfo format
+			const updatesToApply = selectedUpdates.map(selected => ({
+				plugin: {
+					name: selected.name,
+					slug: selected.name,
+					version: selected.currentVersion,
+					status: 'active',
+					mainFile: selected.name + '.php',
+					isMarketplace: selected.isMarketplace
+				},
+				updateInfo: {
+					new_version: selected.newVersion,
+					package: '',
+					url: ''
+				}
+			}));
+			
+			// Apply selected updates
+			console.log('[Main] Applying selected updates...');
+			await updater.updateSelectedPlugins(site, updatesToApply);
+			console.log('[Main] Updates completed, sending success event');
+			
+			LocalMain.sendIPCEvent('plugins-updated', {
+				siteId,
+				updatedCount: updatesToApply.length,
+				plugins: updatesToApply.map(u => u.plugin.name)
+			});
+		} catch (error) {
+			console.error('[Main] Error in apply-selected-updates:', error);
 			LocalMain.getServiceContainer().cradle.localLogger.log('error', error);
 			LocalMain.sendIPCEvent('update-error', { siteId, error: error.message });
 		}
@@ -377,11 +400,110 @@ export default function (context) {
 		});
 	});
 
+	// Repository setup handlers
+	ipcMain.on('check-repository-configured', (event) => {
+		const repositoryPath = LocalMain.UserData.get('allPluginsRepositoryPath');
+		LocalMain.sendIPCEvent('repository-configured-status', {
+			configured: !!repositoryPath,
+			path: repositoryPath || null
+		});
+	});
+
+	ipcMain.on('validate-repository-path', async (event, repositoryPath: string) => {
+		try {
+			const fs = require('fs');
+			const path = require('path');
+			
+			// Check if path exists
+			if (!fs.existsSync(repositoryPath)) {
+				LocalMain.sendIPCEvent('repository-path-validated', {
+					valid: false,
+					error: 'Path does not exist. Please check the path and try again.'
+				});
+				return;
+			}
+
+			// Check if it's a directory
+			const stats = fs.statSync(repositoryPath);
+			if (!stats.isDirectory()) {
+				LocalMain.sendIPCEvent('repository-path-validated', {
+					valid: false,
+					error: 'Path is not a directory. Please provide the path to the repository folder.'
+				});
+				return;
+			}
+
+			// Check if product-packages directory exists (for all-plugins repo)
+			const productPackagesPath = path.join(repositoryPath, 'product-packages');
+			if (!fs.existsSync(productPackagesPath)) {
+				LocalMain.sendIPCEvent('repository-path-validated', {
+					valid: false,
+					error: 'Repository does not contain a "product-packages" directory. Please ensure this is the correct all-plugins repository.'
+				});
+				return;
+			}
+
+			// Check if it's a git repository (optional but recommended)
+			const gitPath = path.join(repositoryPath, '.git');
+			if (!fs.existsSync(gitPath)) {
+				LocalMain.getServiceContainer().cradle.localLogger.log('warn', 
+					`Repository path ${repositoryPath} does not appear to be a git repository`
+				);
+				// Don't fail validation, but log a warning
+			}
+
+			LocalMain.sendIPCEvent('repository-path-validated', {
+				valid: true,
+				path: repositoryPath
+			});
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', 
+				`Error validating repository path: ${error.message}`
+			);
+			LocalMain.sendIPCEvent('repository-path-validated', {
+				valid: false,
+				error: `Error validating path: ${error.message}`
+			});
+		}
+	});
+
+	ipcMain.on('save-repository-path', (event, repositoryPath: string) => {
+		try {
+			LocalMain.UserData.set('allPluginsRepositoryPath', repositoryPath);
+			LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+				`Saved repository path: ${repositoryPath}`
+			);
+			LocalMain.sendIPCEvent('repository-path-saved', { success: true });
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('error', 
+				`Error saving repository path: ${error.message}`
+			);
+			LocalMain.sendIPCEvent('repository-path-saved', { 
+				success: false, 
+				error: error.message 
+			});
+		}
+	});
+
 	ipcMain.on("get-premium-plugin-selections", async () => {
 		try {
 			// Initialize PluginManager if not already done
 			if (!pluginManager.isInitialized) {
-				await pluginManager.initialize(context, process.env.GITHUB_TOKEN);
+				// Send progress updates to renderer
+				const progressCallback = (status: string) => {
+					LocalMain.sendIPCEvent('repository-clone-progress', { status });
+				};
+				
+				try {
+					await pluginManager.initialize(context, process.env.GITHUB_TOKEN, progressCallback);
+					LocalMain.sendIPCEvent('repository-clone-complete', { success: true });
+				} catch (error) {
+					LocalMain.sendIPCEvent('repository-clone-error', { 
+						error: error.message,
+						helpText: getGitInstallationHelp(error.message)
+					});
+					throw error;
+				}
 			}
 			
 			// Get premium plugin selections from PluginManager
@@ -404,6 +526,7 @@ export default function (context) {
 			LocalMain.getServiceContainer().cradle.localLogger.log('error', err);
 		}).then(async () => {
 			await LocalMain.getServiceContainer().cradle.wpCli.run(site, ["plugin", "install", outputFile, "--activate", "--force"]).then(function () {
+				LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully installed plugin: ${outputFile} on site: ${site.id}`);
 				const options = {
 					wcpaydev_proxy: false,
 					wcpaydev_redirect: false,
@@ -439,7 +562,21 @@ export default function (context) {
 		try {
 			// Initialize PluginManager if not already done
 			if (!pluginManager.isInitialized) {
-				await pluginManager.initialize(context, process.env.GITHUB_TOKEN);
+				// Send progress updates to renderer
+				const progressCallback = (status: string) => {
+					LocalMain.sendIPCEvent('repository-clone-progress', { status });
+				};
+				
+				try {
+					await pluginManager.initialize(context, process.env.GITHUB_TOKEN, progressCallback);
+					LocalMain.sendIPCEvent('repository-clone-complete', { success: true });
+				} catch (error) {
+					LocalMain.sendIPCEvent('repository-clone-error', { 
+						error: error.message,
+						helpText: getGitInstallationHelp(error.message)
+					});
+					throw error;
+				}
 			}
 			
 			// Get premium theme selections from PluginManager
@@ -476,6 +613,7 @@ export default function (context) {
 		];
 
 		await LocalMain.getServiceContainer().cradle.wpCli.run(site, ["plugin", "install", "woocommerce", "--activate", "--force"]).then(function () {
+			LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully installed plugin: woocommerce on site: ${site.id}`);
 		}, function (err) {
 			LocalMain.sendIPCEvent('error');
 			LocalMain.getServiceContainer().cradle.localLogger.log('error', err);
@@ -483,6 +621,7 @@ export default function (context) {
 		});
 
 		await LocalMain.getServiceContainer().cradle.wpCli.run(site, ["plugin", "install", "wordpress-importer", "--activate", "--force"]).then(function () {
+			LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully installed plugin: wordpress-importer on site: ${site.id}`);
 			LocalMain.getServiceContainer().cradle.wpCli.run(site, ["import", path + "/app/public/wp-content/plugins/woocommerce/sample-data/sample_products.xml", "--authors=skip"], { skipPlugins: false }).then(function () {
 			}, function (err) {
 				LocalMain.sendIPCEvent('error');
@@ -533,6 +672,14 @@ export default function (context) {
 	});
 
 	ipcMain.on('validate-token', async () => {
+		// Token is optional - Git will be used first, API as fallback
+		if (!process.env.GITHUB_TOKEN) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('info', 'No GitHub token provided - will use Git commands (no token required if git clone works)');
+			LocalMain.sendIPCEvent("gh-token", { "valid": true, "method": "git" });
+			validToken = true;
+			return;
+		}
+
 		try {
 			const validated = await validateGitHubToken(
 				process.env.GITHUB_TOKEN,
@@ -642,6 +789,7 @@ export default function (context) {
 			zipFiles = zipFiles.concat(dotOrgPlugins)
 			for (const zipFile of zipFiles) {
 				await LocalMain.getServiceContainer().cradle.wpCli.run(site, ["plugin", "install", zipFile, "--activate", "--force"]).then(function () {
+					LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully installed plugin: ${zipFile} on site: ${site.id}`);
 					if (!dotOrgPlugins.includes(zipFile)) {
 						fs.unlink(zipFile, (err) => {
 							if (err) {
@@ -697,6 +845,12 @@ export default function (context) {
 	 * specified location.
 	 */
 	async function getPremiumPluginsData() {
+		if (!process.env.GITHUB_TOKEN) {
+			LocalMain.sendIPCEvent("debug-message", new Error('GitHub token is required to access private repository'));
+			return;
+		}
+
+		// Authentication is required for private repos
 		const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 		await octokit.request('GET /repos/{owner}/{repo}/commits', {
 			owner: 'woocommerce',
@@ -739,14 +893,23 @@ export default function (context) {
 	const downloadZipFromGitHub = (fileUrl: string, outputFile: string) => {
 		return new Promise((resolve, reject) => {
 			try {
-				request.get(fileUrl, {
+				if (!process.env.GITHUB_TOKEN) {
+					reject(new Error('GitHub token is required to download from private repository'));
+					return;
+				}
+
+				// Build request options with authentication required for private repos
+				const requestOptions: any = {
 					'auth': {
 						'bearer': process.env.GITHUB_TOKEN
 					},
 					'headers': {
 						'User-Agent': 'Wizard Hat Toolkit'
 					}
-				}).on("error", function (err) {
+				};
+
+				request.get(fileUrl, requestOptions)
+				.on("error", function (err) {
 					LocalMain.getServiceContainer().cradle.localLogger.log('error', err);
 					reject(err);
 				}).pipe(fs.createWriteStream(outputFile)).on('finish', () => {
@@ -767,6 +930,10 @@ export default function (context) {
 	}
 
 	const getDownloadUrl = (pluginSlug) => {
+		if (!process.env.GITHUB_TOKEN) {
+			return Promise.reject(new Error('GitHub token is required to get download URL for private repository'));
+		}
+
 		const path = `product-packages/${pluginSlug}`;
 		const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 		return new Promise((resolve, reject) => {
@@ -775,11 +942,15 @@ export default function (context) {
 				repo: 'all-plugins',
 				path: path,
 			}).then(async ({ data }) => {
-				await data.every(async (element) => {
+				// Handle both array and single file responses
+				const fileList = Array.isArray(data) ? data : [data];
+				for (const element of fileList) {
 					if (pluginSlug + '.zip' === element.name) {
 						resolve(element.download_url);
+						return;
 					}
-				});
+				}
+				reject(new Error(`Plugin zip file not found for ${pluginSlug}`));
 			}, function (err) {
 				LocalMain.getServiceContainer().cradle.localLogger.log('error', err);
 				reject(err);
@@ -788,6 +959,10 @@ export default function (context) {
 	}
 
 	const getThemeDownloadUrl = (pluginSlug) => {
+		if (!process.env.GITHUB_TOKEN) {
+			return Promise.reject(new Error('GitHub token is required to get theme download URL for private repository'));
+		}
+
 		const path = pluginSlug;
 		const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 		return new Promise((resolve, reject) => {

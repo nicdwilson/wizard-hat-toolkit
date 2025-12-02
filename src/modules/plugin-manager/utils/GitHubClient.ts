@@ -2,148 +2,97 @@ import * as LocalMain from '@getflywheel/local/main';
 import { GitHubRepositoryInfo, DownloadResult } from '../types/PluginTypes';
 
 /**
- * Utility class for GitHub API interactions
+ * Utility class for GitHub interactions
  * Handles downloading plugins and themes from WooCommerce repositories
+ * Uses Git commands only (no token required)
  */
 export class GitHubClient {
-    private octokit: any;
-    private githubToken: string;
+    private githubToken: string | null;
 
-    constructor(githubToken: string) {
-        this.githubToken = githubToken;
-        const { Octokit } = require("@octokit/rest");
-        this.octokit = new Octokit({ auth: githubToken });
+    constructor(githubToken?: string | null) {
+        this.githubToken = githubToken || null;
+        // Token is stored but not used - Git commands are used exclusively
     }
 
     /**
-     * Get download URL for a plugin from WooCommerce all-plugins repository
-     */
-    public async getPluginDownloadUrl(pluginSlug: string): Promise<string> {
-        const path = `product-packages/${pluginSlug}`;
-        
-        try {
-            const { data } = await this.octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
-                owner: 'woocommerce',
-                repo: 'all-plugins',
-                path: path,
-            });
-
-            // Find the zip file with the exact plugin slug name
-            const zipFile = data.find((file: any) => file.name === `${pluginSlug}.zip`);
-            
-            if (!zipFile) {
-                throw new Error(`Plugin zip file not found for ${pluginSlug}. Available files: ${data.map((f: any) => f.name).join(', ')}`);
-            }
-
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                `Found download URL for ${pluginSlug}: ${zipFile.download_url}`
-            );
-
-            return zipFile.download_url;
-        } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `Failed to get download URL for ${pluginSlug}: ${error.message}`
-            );
-            throw error;
-        }
-    }
-
-    /**
-     * Get download URL for a theme from WooCommerce all-themes repository
-     */
-    public async getThemeDownloadUrl(themeSlug: string): Promise<string> {
-        try {
-            const { data } = await this.octokit.request('GET /repos/{owner}/{repo}/releases/latest', {
-                owner: 'woocommerce',
-                repo: themeSlug,
-            });
-
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                `Found download URL for theme ${themeSlug}: ${data.zipball_url}`
-            );
-
-            return data.zipball_url;
-        } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `Failed to get download URL for theme ${themeSlug}: ${error.message}`
-            );
-            throw error;
-        }
-    }
-
-    /**
-     * Download a file from GitHub to local filesystem
-     */
-    public async downloadFile(fileUrl: string, outputPath: string): Promise<DownloadResult> {
-        const request = require('request');
-        const fs = require('fs');
-
-        return new Promise((resolve) => {
-            try {
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                    `Starting download from ${fileUrl} to ${outputPath}`
-                );
-
-                request.get(fileUrl, {
-                    'auth': {
-                        'bearer': this.githubToken
-                    },
-                    'headers': {
-                        'User-Agent': 'Wizard Hat Toolkit'
-                    }
-                }).on("error", function (err: any) {
-                    LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                        `Download request failed: ${err.message}`
-                    );
-                    resolve({
-                        success: false,
-                        error: `Download request failed: ${err.message}`
-                    });
-                }).pipe(fs.createWriteStream(outputPath))
-                .on('finish', () => {
-                    LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                        `Download completed: ${outputPath}`
-                    );
-                    resolve({
-                        success: true,
-                        filePath: outputPath
-                    });
-                })
-                .on('error', function (err: any) {
-                    LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                        `File write failed: ${err.message}`
-                    );
-                    resolve({
-                        success: false,
-                        error: `File write failed: ${err.message}`
-                    });
-                });
-            } catch (error) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                    `Download failed: ${error.message}`
-                );
-                resolve({
-                    success: false,
-                    error: `Download failed: ${error.message}`
-                });
-            }
-        });
-    }
-
-    /**
-     * Download a plugin from GitHub
+     * Download a plugin from the local repository
+     * Uses the user-configured local repository path instead of cloning
      */
     public async downloadPlugin(pluginSlug: string, outputPath: string): Promise<DownloadResult> {
+        const fs = require('fs');
+        const path = require('path');
+
         try {
-            const downloadUrl = await this.getPluginDownloadUrl(pluginSlug);
-            return await this.downloadFile(downloadUrl, outputPath);
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Downloading plugin ${pluginSlug} from local repository`
+            );
+
+            // Get the user-configured repository path
+            const repositoryPath = LocalMain.UserData.get('allPluginsRepositoryPath');
+            if (!repositoryPath) {
+                throw new Error('Repository path not configured. Please set up your repository path first.');
+            }
+
+            if (!fs.existsSync(repositoryPath)) {
+                throw new Error(`Repository path does not exist: ${repositoryPath}`);
+            }
+
+            // Construct the path to the plugin zip file
+            const pluginPath = path.join(repositoryPath, 'product-packages', pluginSlug, `${pluginSlug}.zip`);
+            
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Looking for plugin at: ${pluginPath}`
+            );
+
+            if (!fs.existsSync(pluginPath)) {
+                throw new Error(`Plugin zip file not found at ${pluginPath}. Please ensure the repository is up to date and contains the plugin.`);
+            }
+
+            // Ensure output directory exists
+            const outputDir = path.dirname(outputPath);
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+
+            // Copy the plugin zip file to the output path
+            fs.copyFileSync(pluginPath, outputPath);
+
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Successfully downloaded ${pluginSlug} from local repository`
+            );
+            return { success: true, filePath: outputPath };
+
         } catch (error) {
+            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
+                `Failed to download plugin ${pluginSlug}: ${error.message}`
+            );
             return {
                 success: false,
                 error: `Failed to download plugin ${pluginSlug}: ${error.message}`
             };
         }
     }
+
+
+    /**
+     * Get download URL for a theme
+     * Note: All themes are now from wordpress.org (all-themes repository no longer in use)
+     */
+    public async getThemeDownloadUrl(themeSlug: string): Promise<string> {
+        throw new Error('All themes are from wordpress.org. Theme download via API is not available.');
+    }
+
+    /**
+     * Download a file from GitHub to local filesystem
+     * Note: API methods are not available - files should be downloaded via Git
+     */
+    public async downloadFile(fileUrl: string, outputPath: string): Promise<DownloadResult> {
+        return {
+            success: false,
+            error: 'File download via API is not available. Please use Git-based download methods.'
+        };
+    }
+
 
     /**
      * Download a theme from GitHub
@@ -162,52 +111,26 @@ export class GitHubClient {
 
     /**
      * Get repository information
+     * Note: API methods are not available
      */
     public async getRepositoryInfo(owner: string, repo: string): Promise<any> {
-        try {
-            const { data } = await this.octokit.request('GET /repos/{owner}/{repo}', {
-                owner,
-                repo
-            });
-            return data;
-        } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `Failed to get repository info for ${owner}/${repo}: ${error.message}`
-            );
-            throw error;
-        }
+        throw new Error('Repository info via API is not available. Please use Git-based methods.');
     }
 
     /**
      * Get latest release for a repository
+     * Note: API methods are not available
      */
     public async getLatestRelease(owner: string, repo: string): Promise<any> {
-        try {
-            const { data } = await this.octokit.request('GET /repos/{owner}/{repo}/releases/latest', {
-                owner,
-                repo
-            });
-            return data;
-        } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `Failed to get latest release for ${owner}/${repo}: ${error.message}`
-            );
-            throw error;
-        }
+        throw new Error('Latest release via API is not available. Please use Git-based methods.');
     }
 
     /**
      * Check if GitHub token is valid
+     * Note: Token validation via API is not available
      */
     public async validateToken(): Promise<boolean> {
-        try {
-            await this.octokit.request('GET /user');
-            return true;
-        } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
-                `GitHub token validation failed: ${error.message}`
-            );
-            return false;
-        }
+        // Always return false since API is not available
+        return false;
     }
 }
