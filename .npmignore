@@ -27,5 +27,4 @@ dist/
 # Other
 .DS_Store
 dotfiles.tar.gz
-jtubesetup.command
 changelog.md

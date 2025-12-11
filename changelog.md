@@ -1,16 +1,25 @@
 ## Changelog
 
+> **Note:** Jurassic Tube feature has been deprecated and removed as of the latest version.
+
+### 1.7.0
+* UI improvements: Hide selection dropdown and install/update buttons during repository refresh on initial tab launch
+* Add spinner to repository refresh status notice for better visual feedback
+* Remove GitHub token prompt and validation logic (no longer needed with Git-based approach)
+* Remove deprecated Jurassic Tube feature and all related code
+* Update dependencies
+
 ### 1.2.2
 * Ignore woocommerce-shipstation from all-plugins repo
 * Adds node request package to replace context.replace
 
 
 ### 1.2.1
-* Don't limit JT port assignment to nginx
+* Don't limit JT port assignment to nginx (deprecated - Jurassic Tube removed)
 
 ### 1.2
 * Week 3 section added with some content
-* Jurassic Tube feature added
+* Jurassic Tube feature added (deprecated - feature removed)
 
 
 ### 1.1.1

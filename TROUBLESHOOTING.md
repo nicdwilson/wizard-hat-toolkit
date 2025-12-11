@@ -72,11 +72,10 @@ ls -la ~/Library/Application\ Support/Local/addons/wizard-hat-toolkit/lib/module
 #### Step 3: Verify Tab Structure
 The tab should appear in this order:
 1. Utilities
-2. Jurassic Tube
-3. Shop Config Options
-4. Plugin Management
-5. **Blueprint Importer** (should be here)
-6. Plugin Updates
+2. Shop Config Options
+3. Plugin Management
+4. **Blueprint Importer** (should be here)
+5. Plugin Updates
 
 #### Step 4: Test with Simple Content
 If the tab still doesn't appear, the issue might be with the component itself. The current implementation uses a simple test content to verify the tab appears.

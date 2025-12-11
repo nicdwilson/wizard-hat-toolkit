@@ -116,12 +116,6 @@ export default function (context) {
 		LocalMain.UserData.set('subdomains', subdomains);
 	});
 
-	ipcMain.on('get-jtubeStuff', (event, siteId) => {
-		const subdomains = LocalMain.UserData.get('subdomains');
-		const subdomain = subdomains ? subdomains[siteId] : null;
-		LocalMain.sendIPCEvent('jtubeStuff', [{ userDataPath: context.environment.userDataPath }, { jtubeInstalled: fs.existsSync(context.environment.userHome + '/jurassictube/jurassictube.sh') }, {wpUsername: LocalMain.UserData.get('wpuserName')}, {subdomain: subdomain}, {userHome: context.environment.userHome}, {sshkeyCopied: LocalMain.UserData.get('sshkeyCopied')}])
-	});
-
 	// Debug IPC handler to test if IPC is working
 	ipcMain.on('debug-test', (event, data) => {
 		logger.info('MainProcess', 'DEBUG TEST IPC received', data);

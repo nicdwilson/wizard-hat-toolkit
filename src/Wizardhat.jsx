@@ -1,6 +1,5 @@
 import React from "react";
 import { ipcRenderer } from "electron";
-import Jurassictube from "./Jurassictube";
 import PluginManagement from "./PluginManagement";
 import PluginUpdates from "./PluginUpdates";
 import BlueprintUI from "./modules/blueprint-importer/BlueprintUI";
@@ -48,7 +47,6 @@ export default class Wizardhat extends React.Component {
 		this.handlePluginSelectionChange =
 			this.handlePluginSelectionChange.bind(this);
 		this.installPlugins = this.installPlugins.bind(this);
-		this.jurassicTube = this.jurassicTube.bind(this);
 		this.pluginManagementContent = this.pluginManagementContent.bind(this);
 		this.pluginUpdatesContent = this.pluginUpdatesContent.bind(this);
 		this.blueprintImporterContent = this.blueprintImporterContent.bind(this);
@@ -447,10 +445,6 @@ export default class Wizardhat extends React.Component {
 		return new PluginUpdates(this.props);
 	}
 
-	jurassicTube() {
-		return new Jurassictube(this.props);
-	}
-
 	blueprintImporterContent() {
 		return <BlueprintUI {...this.props} />;
 	}
@@ -496,12 +490,6 @@ export default class Wizardhat extends React.Component {
 								component={this.blueprintImporterContent}
 							>
 								Blueprint Importer
-							</TertiaryNavItem>
-							<TertiaryNavItem
-								path="/jurassic-tube"
-								component={this.jurassicTube}
-							>
-								Jurassic Tube
 							</TertiaryNavItem>
 							<TertiaryNavItem
 								path="/tools"
