@@ -8,7 +8,6 @@ import {
 	Text,
 	Spinner,
 	Card,
-	InputPasswordToggle,
 	Divider,
 } from "@getflywheel/local-components";
 import Select from "react-select";
@@ -22,7 +21,6 @@ export default class PluginManagement extends React.Component {
 			showInstructions: false,
 			showError: false,
 			showSpinner: false,
-			tokenIsValid: false,
 			premiumPluginSelections: [],
 			pluginsToInstall: [],
 			selectedPlugins: null,
@@ -76,21 +74,6 @@ export default class PluginManagement extends React.Component {
 			});
 		});
 
-		ipcRenderer.send("is-token-valid");
-		ipcRenderer.on("gh-token", (event, args) => {
-			this.setState({
-				tokenIsValid: args.valid,
-			});
-		});
-
-		ipcRenderer.on("token-is-valid", (event, tokenIsValid) => {
-			this.setState({
-				tokenIsValid: tokenIsValid,
-			});
-		});
-
-		ipcRenderer.send("validate-token");
-
 		ipcRenderer.on("premium-plugin-selections", (event, args) => {
 			this.setState({
 				premiumPluginSelections: args,
@@ -132,12 +115,6 @@ export default class PluginManagement extends React.Component {
 			this.setState({
 				showSpinner: false,
 			});
-		});
-
-		ipcRenderer.send("validate-token");
-
-		ipcRenderer.on("is-token-valid", () => {
-			ipcRenderer.send("token-is-valid", this.state.tokenIsValid);
 		});
 
 		// Listen for repository clone progress
@@ -254,10 +231,6 @@ export default class PluginManagement extends React.Component {
 		}
 	}
 
-	maybeSaveToken(token) {
-		ipcRenderer.send("set-user-token", token);
-	}
-
 	handlePluginSelectionChange(value, action) {
 		this.setState({
 			selectedPlugins: value,
@@ -316,31 +289,6 @@ export default class PluginManagement extends React.Component {
 		);
 	}
 
-	tokenInput = () => (
-		<div
-			style={{
-				flexGrow: "1",
-				position: "relative",
-			}}
-			class="woo gh-token"
-		>
-			<p>
-				This content requires a valid{" "}
-				<a href="https://github.com/settings/tokens">GitHub token</a>{" "}
-				with 'repo' scope enabled.
-			</p>
-			<p>Please enter a valid token to continue.</p>
-			<p>
-				<InputPasswordToggle
-					onChange={(event) =>
-						this.maybeSaveToken(event.target.value)
-					}
-					onBlur={(event) => this.maybeSaveToken(event.target.value)}
-				/>
-			</p>
-		</div>
-	);
-
 	getPluginSelections() {
 		ipcRenderer.send("get-premium-plugin-selections");
 	}
@@ -349,10 +297,12 @@ export default class PluginManagement extends React.Component {
 		if (this.state.cloneStatus) {
 			return (
 				<Card style={{ marginBottom: "1em", backgroundColor: "#f0f8ff" }}>
-					<Text fontSize="s" style={{ color: "#0066cc" }}>
-						{this.state.cloneStatus}
-					</Text>
-					{this.renderSpinner()}
+					<div style={{ display: "flex", alignItems: "center", gap: "0.5em" }}>
+						<Spinner />
+						<Text fontSize="s" style={{ color: "#0066cc" }}>
+							{this.state.cloneStatus}
+						</Text>
+					</div>
 				</Card>
 			);
 		}
@@ -389,54 +339,54 @@ export default class PluginManagement extends React.Component {
 			);
 		}
 
-		if (this.state.tokenIsValid) {
-			return (
-				<div
-					style={{
-						flexGrow: "1",
-						position: "relative",
-					}}
-					class="woo"
-				>
-					{this.renderCloneStatus()}
-					<Card style={{ zIndex: 9999, overflow: "visible" }}>
-						A la Carte plugin installation
-						<div style={{ width: "90%", margin: "1em" }}>
-							<Select
-								options={this.state.premiumPluginSelections}
-								placeholder={"Select plugin(s) to install..."}
-								onChange={this.handlePluginSelectionChange}
-								name="plugin_slug"
-								style={{
-									zIndex: 9999,
-									flexGrow: "1",
-									overflow: "visible",
-								}}
-								className="plugin-select"
-								value={this.state.selectedPlugins}
-								isMulti
-							/>
-						</div>
-						<Button
-							className="woo button"
-							//disabled={this.state.installPluginButton}
+		return (
+			<div
+				style={{
+					flexGrow: "1",
+					position: "relative",
+				}}
+				class="woo"
+			>
+				{this.renderCloneStatus()}
+				<Card style={{ zIndex: 9999, overflow: "visible" }}>
+					A la Carte plugin installation
+					{!this.state.cloneStatus && (
+						<>
+							<div style={{ width: "90%", margin: "1em" }}>
+								<Select
+									options={this.state.premiumPluginSelections}
+									placeholder={"Select plugin(s) to install..."}
+									onChange={this.handlePluginSelectionChange}
+									name="plugin_slug"
+									style={{
+										zIndex: 9999,
+										flexGrow: "1",
+										overflow: "visible",
+									}}
+									className="plugin-select"
+									value={this.state.selectedPlugins}
+									isMulti
+								/>
+							</div>
+							<Button
+								className="woo button"
+								//disabled={this.state.installPluginButton}
 
-							onClick={this.installPlugins}
-						>
-							Install
-							{this.renderSpinner()}
-						</Button>
-						<p></p>
-					</Card>
-					<Divider />
-					{/**<Card>
-				Install & Activate Popular Extensions
-				<Button className="woo button">Install</Button>
-					</Card>*/}
-				</div>
-			);
-		} else {
-			return ( <Card style={{ zIndex: 9999, overflow: "visible" }}><p>{this.tokenInput()} </p></Card> );
-		}
+								onClick={this.installPlugins}
+							>
+								Install
+								{this.renderSpinner()}
+							</Button>
+						</>
+					)}
+					<p></p>
+				</Card>
+				<Divider />
+				{/**<Card>
+			Install & Activate Popular Extensions
+			<Button className="woo button">Install</Button>
+				</Card>*/}
+			</div>
+		);
 	}
 }

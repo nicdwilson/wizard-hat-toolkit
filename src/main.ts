@@ -2,9 +2,6 @@
 import * as LocalMain from '@getflywheel/local/main';
 //import { downloadRelease } from '@terascope/fetch-github-release';
 //LocalMain.UserData.remove('ghToken');
-process.env.GITHUB_TOKEN = LocalMain.UserData.get('ghToken');
-var validToken = false;
-
 // Import plugin update modules
 import { PluginDetector } from './modules/plugin-updater/PluginDetector';
 import { UpdateChecker } from './modules/plugin-updater/UpdateChecker';
@@ -50,7 +47,6 @@ export default function (context) {
 	
 	const { electron } = context;
 	const { ipcMain } = electron;
-	const { validateGitHubToken, ValidationError } = require('validate-github-token');
 	const { downloadRelease } = require('@terascope/fetch-github-release');
 	const { Octokit } = require("@octokit/rest");
 	const fs = require('fs');
@@ -124,10 +120,6 @@ export default function (context) {
 		const subdomains = LocalMain.UserData.get('subdomains');
 		const subdomain = subdomains ? subdomains[siteId] : null;
 		LocalMain.sendIPCEvent('jtubeStuff', [{ userDataPath: context.environment.userDataPath }, { jtubeInstalled: fs.existsSync(context.environment.userHome + '/jurassictube/jurassictube.sh') }, {wpUsername: LocalMain.UserData.get('wpuserName')}, {subdomain: subdomain}, {userHome: context.environment.userHome}, {sshkeyCopied: LocalMain.UserData.get('sshkeyCopied')}])
-	});
-
-	ipcMain.on('is-token-valid', () => {
-		LocalMain.sendIPCEvent('token-is-valid', validToken);
 	});
 
 	// Debug IPC handler to test if IPC is working
@@ -664,47 +656,6 @@ export default function (context) {
 			LocalMain.sendIPCEvent("spinner-done");
 		}
 
-	});
-
-	ipcMain.on("set-user-token", (event, token) => {
-		process.env.GITHUB_TOKEN = token;
-		LocalMain.sendIPCEvent("validate-token");
-	});
-
-	ipcMain.on('validate-token', async () => {
-		// Token is optional - Git will be used first, API as fallback
-		if (!process.env.GITHUB_TOKEN) {
-			LocalMain.getServiceContainer().cradle.localLogger.log('info', 'No GitHub token provided - will use Git commands (no token required if git clone works)');
-			LocalMain.sendIPCEvent("gh-token", { "valid": true, "method": "git" });
-			validToken = true;
-			return;
-		}
-
-		try {
-			const validated = await validateGitHubToken(
-				process.env.GITHUB_TOKEN,
-				{
-					scope: {
-						// Checks 'repo' scope is added to the token
-						included: ['repo']
-					}
-				}
-			);
-			LocalMain.UserData.set('ghToken', process.env.GITHUB_TOKEN);
-			LocalMain.sendIPCEvent("gh-token", { "valid": true });
-			validToken = true;
-		} catch (err) {
-			if (err instanceof ValidationError) {
-				LocalMain.getServiceContainer().cradle.localLogger.log('error', 'error:(');
-				LocalMain.getServiceContainer().cradle.localLogger.log('error', err.message);
-				LocalMain.sendIPCEvent("gh-token", { "valid": false });
-				LocalMain.UserData.remove('ghToken');
-			} else {
-				LocalMain.sendIPCEvent('error');
-				LocalMain.getServiceContainer().cradle.localLogger.log('error', err);
-				throw err;
-			}
-		}
 	});
 
 	ipcMain.on('switch-country', async (event, siteId, options) => {

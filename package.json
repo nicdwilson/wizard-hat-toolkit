@@ -47,7 +47,7 @@
     "dependencies": {
         "@emotion/react": "^11.8.2",
         "@emotion/styled": "^11.8.1",
-        "@getflywheel/local-components": "^14.2.0",
+        "@getflywheel/local-components": "^14.2.3",
         "@octokit/rest": "^18.12.0",
         "@terascope/fetch-github-release": "^0.8.7",
         "@types/react": "^18.3.23",

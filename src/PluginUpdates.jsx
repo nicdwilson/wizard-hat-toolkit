@@ -322,10 +322,12 @@ export default class PluginUpdates extends React.Component {
 		if (this.state.cloneStatus) {
 			return (
 				<Card style={{ marginBottom: "1em", backgroundColor: "#f0f8ff" }}>
-					<Text fontSize="s" style={{ color: "#0066cc" }}>
-						{this.state.cloneStatus}
-					</Text>
-					{this.renderSpinner()}
+					<div style={{ display: "flex", alignItems: "center", gap: "0.5em" }}>
+						<Spinner />
+						<Text fontSize="s" style={{ color: "#0066cc" }}>
+							{this.state.cloneStatus}
+						</Text>
+					</div>
 				</Card>
 			);
 		}
@@ -369,16 +371,18 @@ export default class PluginUpdates extends React.Component {
 							⚠️ Site must be running to check for updates
 						</Text>
 					)}
-					<div style={{ margin: "1em 0" }}>
-						<Button
-							onClick={this.checkUpdates}
-							className="woo button"
-							disabled={this.state.showSpinner || (this.props.siteStatuses && this.props.siteStatuses[this.state.siteId] !== "running")}
-						>
-							Check for Updates
-							{this.renderSpinner()}
-						</Button>
-					</div>
+					{!this.state.cloneStatus && (
+						<div style={{ margin: "1em 0" }}>
+							<Button
+								onClick={this.checkUpdates}
+								className="woo button"
+								disabled={this.state.showSpinner || (this.props.siteStatuses && this.props.siteStatuses[this.state.siteId] !== "running")}
+							>
+								Check for Updates
+								{this.renderSpinner()}
+							</Button>
+						</div>
+					)}
 				</Card>
 
 				<Divider />

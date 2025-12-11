@@ -17,7 +17,6 @@ import {
 	TertiaryNav,
 	TertiaryNavItem,
 	Card,
-	InputPasswordToggle,
 	Divider,
 } from "@getflywheel/local-components";
 import Select from "react-select";
@@ -30,7 +29,6 @@ export default class Wizardhat extends React.Component {
 			showError: false,
 			localeSwitchedTo: "",
 			showSpinner: false,
-			tokenIsValid: false,
 			day: null,
 			rootPath: props.sites[props.match.params.siteID].path,
 			premiumPluginSelections: [],
@@ -76,15 +74,6 @@ export default class Wizardhat extends React.Component {
 			});
 		});
 
-		ipcRenderer.on("gh-token", (event, args) => {
-			this.setState({
-				tokenIsValid: args.valid,
-			});
-			ipcRenderer.send("get-premium-plugin-selections");
-			ipcRenderer.send("get-premium-theme-selections");
-			ipcRenderer.send("token-is-valid", args.valid);
-		});
-
 		ipcRenderer.on("premium-plugin-selections", (event, args) => {
 			this.setState({
 				premiumPluginSelections: args,
@@ -128,17 +117,11 @@ export default class Wizardhat extends React.Component {
 			});
 		});
 
-		ipcRenderer.send("validate-token");
-
-		ipcRenderer.on("is-token-valid", () => {
-			ipcRenderer.send("token-is-valid", this.state.tokenIsValid);
-		});
 	}
 
 	componentWillUnmount() {
 		ipcRenderer.removeAllListeners("instructions");
 		ipcRenderer.removeAllListeners("error");
-		ipcRenderer.removeAllListeners("gh-token");
 		ipcRenderer.removeAllListeners("debug-message");
 		ipcRenderer.removeAllListeners("premium-plugin-selections");
 		ipcRenderer.removeAllListeners("plugin-install-done");
@@ -228,10 +211,6 @@ export default class Wizardhat extends React.Component {
 		} else {
 			return null;
 		}
-	}
-
-	maybeSaveToken(token) {
-		ipcRenderer.send("set-user-token", token);
 	}
 
 	handlePluginSelectionChange(value, action) {
@@ -454,31 +433,6 @@ export default class Wizardhat extends React.Component {
 				</Button>
 			</li>
 		</ul>
-	);
-
-	tokenInput = () => (
-		<div
-			style={{
-				flexGrow: "1",
-				position: "relative",
-			}}
-			class="woo gh-token"
-		>
-			<p>
-				This content requires a valid{" "}
-				<a href="https://github.com/settings/tokens">GitHub token</a>{" "}
-				with 'repo' scope enabled.
-			</p>
-			<p>Please enter a valid token to continue.</p>
-			<p>
-				<InputPasswordToggle
-					onChange={(event) =>
-						this.maybeSaveToken(event.target.value)
-					}
-					onBlur={(event) => this.maybeSaveToken(event.target.value)}
-				/>
-			</p>
-		</div>
 	);
 
 	getPluginSelections() {
