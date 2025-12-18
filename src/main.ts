@@ -324,21 +324,42 @@ export default function (context) {
 			const updater = new PluginUpdater(context, premiumPluginSelections);
 			
 			// Convert selected updates back to UpdateInfo format
-			const updatesToApply = selectedUpdates.map(selected => ({
-				plugin: {
-					name: selected.name,
-					slug: selected.name,
-					version: selected.currentVersion,
-					status: 'active',
-					mainFile: selected.name + '.php',
-					isMarketplace: selected.isMarketplace
-				},
-				updateInfo: {
-					new_version: selected.newVersion,
-					package: '',
-					url: ''
-				}
-			}));
+			// Note: We need to preserve the isMarketplace flag that was determined during update checking
+			// This flag determines whether to update from WordPress.org or the all-plugins repository
+			const updatesToApply = selectedUpdates.map(selected => {
+				const updateInfo = {
+					plugin: {
+						name: selected.name,
+						slug: selected.name,
+						version: selected.currentVersion,
+						status: 'active',
+						mainFile: selected.name + '.php', // Not used during updates, but kept for consistency
+						isMarketplace: selected.isMarketplace // This is the key flag that determines update source
+					},
+					updateInfo: {
+						new_version: selected.newVersion,
+						package: '',
+						url: ''
+					}
+				};
+				
+				logger.info('MainProcess', 'Preparing update', {
+					plugin: selected.name,
+					currentVersion: selected.currentVersion,
+					newVersion: selected.newVersion,
+					updateSource: selected.isMarketplace ? 'all-plugins repository' : 'WordPress.org'
+				});
+				
+				return updateInfo;
+			});
+			
+			console.log('[Main] Updates to apply:', updatesToApply.map(u => ({
+				name: u.plugin.name,
+				currentVersion: u.plugin.version,
+				newVersion: u.updateInfo.new_version,
+				updateSource: u.plugin.isMarketplace ? 'all-plugins repository' : 'WordPress.org',
+				isMarketplace: u.plugin.isMarketplace
+			})));
 			
 			// Apply selected updates
 			console.log('[Main] Applying selected updates...');

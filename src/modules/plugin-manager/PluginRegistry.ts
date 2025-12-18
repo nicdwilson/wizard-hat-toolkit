@@ -321,13 +321,26 @@ export class PluginRegistry {
         const fs = require('fs');
         const path = require('path');
 
+        // Helper function to log messages to console, Local logger, and renderer via IPC
+        const logMessage = (message: string) => {
+            console.log(message);
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', message);
+            // Send to renderer via IPC if available
+            try {
+                LocalMain.sendIPCEvent('repository-debug-log', { message });
+            } catch (e) {
+                // IPC might not be available, ignore
+            }
+        };
+
         try {
             // Check if it's a git repository first
             const gitPath = path.join(repoPath, '.git');
+            logMessage(`[Repository Refresh] Checking repository at: ${repoPath}`);
+            logMessage(`[Repository Refresh] Git directory exists: ${fs.existsSync(gitPath)}`);
+            
             if (!fs.existsSync(gitPath)) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                    `Repository at ${repoPath} is not a git repository. Skipping update check.`
-                );
+                logMessage(`Repository at ${repoPath} is not a git repository. Skipping update check.`);
                 if (progressCallback) {
                     progressCallback('Repository is not a git repository. Using existing files.');
                 }
@@ -345,42 +358,198 @@ export class PluginRegistry {
                 HOME: process.env.HOME || os.homedir(),
             };
             
+            // Get current branch and commit info before fetch
+            let currentBranch = 'main'; // Default fallback
+            try {
+                const currentBranchResult = await execAsync(`git rev-parse --abbrev-ref HEAD`, {
+                    cwd: repoPath,
+                    timeout: 5000,
+                    env: env
+                });
+                currentBranch = currentBranchResult.stdout.trim();
+                logMessage(`[Repository Refresh] Current branch: ${currentBranch}`);
+                
+                const currentCommitResult = await execAsync(`git rev-parse HEAD`, {
+                    cwd: repoPath,
+                    timeout: 5000,
+                    env: env
+                });
+                const currentCommit = currentCommitResult.stdout.trim();
+                logMessage(`[Repository Refresh] Current commit: ${currentCommit.substring(0, 8)}`);
+            } catch (preCheckError) {
+                logMessage(`[Repository Refresh] Could not get current branch/commit info: ${preCheckError.message}`);
+            }
+            
             // Fetch latest changes
-            await execAsync(`git fetch origin`, {
+            logMessage(`[Repository Refresh] Running: git fetch origin`);
+            const fetchStartTime = Date.now();
+            const fetchResult = await execAsync(`git fetch origin`, {
                 cwd: repoPath,
                 timeout: 60000,
                 env: env
             });
+            const fetchDuration = Date.now() - fetchStartTime;
+            logMessage(`[Repository Refresh] git fetch completed in ${fetchDuration}ms`);
+            if (fetchResult.stdout) {
+                logMessage(`[Repository Refresh] git fetch stdout: ${fetchResult.stdout.trim()}`);
+            }
+            if (fetchResult.stderr) {
+                logMessage(`[Repository Refresh] git fetch stderr: ${fetchResult.stderr.trim()}`);
+            }
+
+            // Determine the remote branch name (could be origin/main or origin/master)
+            // First try to get the upstream branch (most reliable)
+            let remoteBranch = `origin/${currentBranch}`;
+            try {
+                // Check if there's a tracking branch set up
+                const upstreamResult = await execAsync(`git rev-parse --abbrev-ref --symbolic-full-name @{u}`, {
+                    cwd: repoPath,
+                    timeout: 5000,
+                    env: env
+                });
+                remoteBranch = upstreamResult.stdout.trim();
+                logMessage(`[Repository Refresh] Using configured upstream branch: ${remoteBranch}`);
+            } catch (upstreamError) {
+                // No upstream set, try to detect which remote branch exists
+                // Try origin/master first (most common for older repos)
+                try {
+                    await execAsync(`git rev-parse --verify origin/master`, {
+                        cwd: repoPath,
+                        timeout: 5000,
+                        env: env
+                    });
+                    remoteBranch = 'origin/master';
+                    logMessage(`[Repository Refresh] Detected remote branch: origin/master`);
+                } catch (masterError) {
+                    // Try origin/main (newer repos)
+                    try {
+                        await execAsync(`git rev-parse --verify origin/main`, {
+                            cwd: repoPath,
+                            timeout: 5000,
+                            env: env
+                        });
+                        remoteBranch = 'origin/main';
+                        logMessage(`[Repository Refresh] Detected remote branch: origin/main`);
+                    } catch (mainError) {
+                        // Fall back to origin/{currentBranch}
+                        logMessage(`[Repository Refresh] Using default remote branch: ${remoteBranch}`);
+                    }
+                }
+            }
 
             // Check if local is behind remote
-            const { stdout } = await execAsync(`git rev-list HEAD..origin/main --count`, {
+            logMessage(`[Repository Refresh] Running: git rev-list HEAD..${remoteBranch} --count`);
+            const countResult = await execAsync(`git rev-list HEAD..${remoteBranch} --count`, {
                 cwd: repoPath,
                 timeout: 30000,
                 env: env
             });
             
-            const commitsBehind = parseInt(stdout.trim(), 10);
+            const commitsBehind = parseInt(countResult.stdout.trim(), 10);
+            logMessage(`[Repository Refresh] Commits behind ${remoteBranch}: ${commitsBehind}`);
+            
+            // Also check the opposite direction (commits ahead)
+            try {
+                const aheadResult = await execAsync(`git rev-list ${remoteBranch}..HEAD --count`, {
+                    cwd: repoPath,
+                    timeout: 30000,
+                    env: env
+                });
+                const commitsAhead = parseInt(aheadResult.stdout.trim(), 10);
+                if (commitsAhead > 0) {
+                    logMessage(`[Repository Refresh] Commits ahead of ${remoteBranch}: ${commitsAhead}`);
+                }
+            } catch (aheadError) {
+                // Ignore errors for ahead check
+            }
+            
             const hasUpdates = commitsBehind > 0;
+            logMessage(`[Repository Refresh] Has updates: ${hasUpdates}`);
 
             if (hasUpdates && progressCallback) {
                 progressCallback(`Found ${commitsBehind} new commit(s). Updating repository...`);
             }
 
             if (hasUpdates) {
-                // Pull latest changes
-                await execAsync(`git pull origin main`, {
+                // Get remote commit info before pull
+                try {
+                    const remoteCommitResult = await execAsync(`git rev-parse ${remoteBranch}`, {
+                        cwd: repoPath,
+                        timeout: 5000,
+                        env: env
+                    });
+                    const remoteCommit = remoteCommitResult.stdout.trim();
+                    logMessage(`[Repository Refresh] Remote commit (${remoteBranch}): ${remoteCommit.substring(0, 8)}`);
+                } catch (remoteError) {
+                    logMessage(`[Repository Refresh] Could not get remote commit info: ${remoteError.message}`);
+                }
+                
+                // Pull latest changes - use the current branch name
+                logMessage(`[Repository Refresh] Running: git pull origin ${currentBranch}`);
+                const pullStartTime = Date.now();
+                const pullResult = await execAsync(`git pull origin ${currentBranch}`, {
                     cwd: repoPath,
                     timeout: 120000,
                     env: env
                 });
+                const pullDuration = Date.now() - pullStartTime;
+                logMessage(`[Repository Refresh] git pull completed in ${pullDuration}ms`);
+                if (pullResult.stdout) {
+                    logMessage(`[Repository Refresh] git pull stdout: ${pullResult.stdout.trim()}`);
+                }
+                if (pullResult.stderr) {
+                    logMessage(`[Repository Refresh] git pull stderr: ${pullResult.stderr.trim()}`);
+                }
+                
+                // Verify the pull worked by checking commit again
+                try {
+                    const verifyResult = await execAsync(`git rev-list HEAD..${remoteBranch} --count`, {
+                        cwd: repoPath,
+                        timeout: 30000,
+                        env: env
+                    });
+                    const commitsBehindAfter = parseInt(verifyResult.stdout.trim(), 10);
+                    logMessage(`[Repository Refresh] Commits behind after pull: ${commitsBehindAfter}`);
+                    
+                    if (commitsBehindAfter === 0) {
+                        logMessage('[Repository Refresh] ✅ Repository successfully updated and is now up to date');
+                    } else {
+                        logMessage(`[Repository Refresh] ⚠️ Repository still ${commitsBehindAfter} commits behind after pull`);
+                    }
+                } catch (verifyError) {
+                    logMessage(`[Repository Refresh] Could not verify pull result: ${verifyError.message}`);
+                }
+                
                 return true;
+            } else {
+                logMessage('[Repository Refresh] ✅ Repository is already up to date (0 commits behind)');
             }
 
             return false;
         } catch (error) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('warn', 
-                `Failed to check for updates: ${error.message}. Will use existing repository.`
-            );
+            const errorMessage = `[Repository Refresh] ❌ Failed to check for updates: ${error.message}`;
+            console.error(errorMessage);
+            LocalMain.getServiceContainer().cradle.localLogger.log('error', errorMessage);
+            try {
+                LocalMain.sendIPCEvent('repository-debug-log', { message: errorMessage });
+            } catch (e) {}
+            
+            if (error.stdout) {
+                const stdoutMsg = `[Repository Refresh] Error stdout: ${error.stdout}`;
+                console.error(stdoutMsg);
+                LocalMain.getServiceContainer().cradle.localLogger.log('error', stdoutMsg);
+                try {
+                    LocalMain.sendIPCEvent('repository-debug-log', { message: stdoutMsg });
+                } catch (e) {}
+            }
+            if (error.stderr) {
+                const stderrMsg = `[Repository Refresh] Error stderr: ${error.stderr}`;
+                console.error(stderrMsg);
+                LocalMain.getServiceContainer().cradle.localLogger.log('error', stderrMsg);
+                try {
+                    LocalMain.sendIPCEvent('repository-debug-log', { message: stderrMsg });
+                } catch (e) {}
+            }
             // Don't throw - use existing repository even if update check fails
             if (progressCallback) {
                 progressCallback('Update check failed. Using existing repository.');
@@ -864,56 +1033,92 @@ export class PluginRegistry {
         const repoPath = this.getRepositoryPath('all-plugins');
         const repoUrl = 'https://github.com/woocommerce/all-plugins.git';
 
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+            `[Repository] loadPremiumPluginsViaGit called`
+        );
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+            `[Repository] Repository path: ${repoPath}`
+        );
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+            `[Repository] Repository URL: ${repoUrl}`
+        );
+
         try {
             // Simple check: does directory exist and have content?
             // Skip git-specific checks for now since repos are manually cloned
             const dirExists = fs.existsSync(repoPath);
             let hasContent = false;
             
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `[Repository] Directory exists: ${dirExists}`
+            );
+            
             if (dirExists) {
                 try {
                     const entries = fs.readdirSync(repoPath);
                     hasContent = entries.length > 0;
                     LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                        `Repository directory exists with ${entries.length} entries: ${repoPath}`
+                        `[Repository] Repository directory exists with ${entries.length} entries: ${repoPath}`
+                    );
+                    LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                        `[Repository] Directory entries: ${entries.slice(0, 10).join(', ')}${entries.length > 10 ? '...' : ''}`
                     );
                 } catch (readError) {
                     LocalMain.getServiceContainer().cradle.localLogger.log('warn', 
-                        `Could not read repository directory: ${readError.message}`
+                        `[Repository] Could not read repository directory: ${readError.message}`
                     );
                 }
             } else {
                 LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                    `Repository directory does not exist: ${repoPath}`
+                    `[Repository] Repository directory does not exist: ${repoPath}`
                 );
             }
             
             if (dirExists && hasContent) {
                 // Use existing repository - refresh it to ensure it's up to date
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `[Repository Refresh] ========================================`
+                );
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `[Repository Refresh] Starting repository refresh process`
+                );
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `[Repository Refresh] Repository path: ${repoPath}`
+                );
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `[Repository Refresh] Repository exists with content, refreshing...`
+                );
+                
                 if (progressCallback) {
                     progressCallback(`Refreshing repository to ensure it's up to date...`);
                 }
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                    `Repository exists, refreshing: ${repoPath}`
-                );
                 
                 // Check for updates and refresh the repository
                 const hasUpdates = await this.checkForUpdates(repoPath, progressCallback);
+                
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `[Repository Refresh] checkForUpdates returned: ${hasUpdates}`
+                );
+                
                 if (hasUpdates) {
                     LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                        `Repository updated successfully`
+                        `[Repository Refresh] ✅ Repository updated successfully`
                     );
                     if (progressCallback) {
                         progressCallback(`Repository refreshed successfully`);
                     }
-            } else {
+                } else {
                     LocalMain.getServiceContainer().cradle.localLogger.log('info', 
-                        `Repository is already up to date`
+                        `[Repository Refresh] ℹ️ Repository is already up to date (or update check returned false)`
                     );
                     if (progressCallback) {
                         progressCallback(`Repository is up to date`);
                     }
                 }
+                
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `[Repository Refresh] ========================================`
+                );
             } else {
                 // Repository doesn't exist or is empty
                 // For user-provided paths, don't auto-clone - user should clone it themselves

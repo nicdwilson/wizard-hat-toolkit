@@ -112,6 +112,11 @@ export default class PluginUpdates extends React.Component {
 			});
 		});
 
+		// Listen for repository debug logs
+		ipcRenderer.on("repository-debug-log", (event, data) => {
+			console.log(data.message);
+		});
+
 		// Trigger repository initialization when component mounts (tab is opened)
 		// This ensures the repository is ready when user clicks "Check for Updates"
 		ipcRenderer.send("get-premium-plugin-selections");
@@ -126,6 +131,7 @@ export default class PluginUpdates extends React.Component {
 		ipcRenderer.removeAllListeners("repository-clone-progress");
 		ipcRenderer.removeAllListeners("repository-clone-complete");
 		ipcRenderer.removeAllListeners("repository-clone-error");
+		ipcRenderer.removeAllListeners("repository-debug-log");
 	}
 
 	checkUpdates() {
@@ -216,6 +222,15 @@ export default class PluginUpdates extends React.Component {
 		return (
 			<Card>
 				<Title>Available Updates</Title>
+				{this.state.statusMessage && (
+					<Text fontSize="s" style={{ 
+						color: "#4CAF50", 
+						margin: "0.5em 0",
+						fontWeight: "bold"
+					}}>
+						{this.state.statusMessage}
+					</Text>
+				)}
 				<Text>
 					Select the plugins you want to update:
 				</Text>
@@ -236,7 +251,9 @@ export default class PluginUpdates extends React.Component {
 					</Button>
 				</div>
 
-				<div style={{ margin: "1em 0" }}>
+				<Divider style={{ margin: "1em 0" }} />
+
+				<div>
 					{this.state.availableUpdates.map((update, index) => (
 						<div key={index} style={{ margin: "0.5em 0", padding: "0.5em", border: "1px solid #ddd", borderRadius: "4px" }}>
 							<Checkbox
@@ -348,6 +365,21 @@ export default class PluginUpdates extends React.Component {
 		return null;
 	}
 
+	renderStatusMessage() {
+		if (!this.state.statusMessage || this.state.updateStatus === "available") return null;
+
+		return (
+			<Card style={{ marginBottom: "1em" }}>
+				<Text fontSize="s" style={{ 
+					color: this.state.updateStatus === "error" ? "#ff6b6b" : "#4CAF50", 
+					fontWeight: "bold"
+				}}>
+					{this.state.statusMessage}
+				</Text>
+			</Card>
+		);
+	}
+
 	render() {
 		return (
 			<Container>
@@ -357,15 +389,6 @@ export default class PluginUpdates extends React.Component {
 					<Text>
 						Check for and update WordPress plugins on this site.
 					</Text>
-					{this.state.statusMessage && (
-						<Text fontSize="s" style={{ 
-							color: this.state.updateStatus === "error" ? "#ff6b6b" : "#4CAF50", 
-							margin: "0.5em 0",
-							fontWeight: "bold"
-						}}>
-							{this.state.statusMessage}
-						</Text>
-					)}
 					{this.props.siteStatuses && this.props.siteStatuses[this.state.siteId] !== "running" && (
 						<Text fontSize="s" style={{ color: "#ff6b6b", margin: "0.5em 0" }}>
 							⚠️ Site must be running to check for updates
@@ -384,6 +407,8 @@ export default class PluginUpdates extends React.Component {
 						</div>
 					)}
 				</Card>
+
+				{this.renderStatusMessage()}
 
 				<Divider />
 

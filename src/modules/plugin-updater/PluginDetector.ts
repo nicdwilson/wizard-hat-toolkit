@@ -33,6 +33,25 @@ export class PluginDetector {
             ]);
             
             const plugins = JSON.parse(result);
+            
+            // Get all plugins with their main file paths from WordPress
+            // This returns an array keyed by plugin file path (e.g., "woocommerce/woocommerce.php")
+            const pluginsDataResult = await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                'eval', `
+                    require_once ABSPATH . 'wp-admin/includes/plugin.php';
+                    echo json_encode(get_plugins());
+                `
+            ]);
+            
+            const pluginsData = JSON.parse(pluginsDataResult);
+            
+            // Create a map of plugin folder name to main file path
+            const pluginFileMap: { [key: string]: string } = {};
+            for (const filePath in pluginsData) {
+                const folderName = filePath.split('/')[0];
+                pluginFileMap[folderName] = filePath;
+            }
+            
             const allPlugins: PluginInfo[] = [];
             
             for (const plugin of plugins) {
@@ -46,14 +65,25 @@ export class PluginDetector {
                     'plugin', 'get', plugin.name, '--field=version'
                 ]);
                 
+                // Get the actual main file path from our map, or fall back to default
+                const mainFilePath = pluginFileMap[plugin.name] || `${plugin.name}/${plugin.name}.php`;
+                // Extract just the filename (e.g., "woocommerce.php" from "woocommerce/woocommerce.php")
+                const mainFile = mainFilePath.includes('/') 
+                    ? mainFilePath.split('/')[1] 
+                    : mainFilePath;
+                
                 const isMarketplace = this.isMarketplacePlugin(plugin);
+                
+                LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                    `Detected plugin: ${plugin.name}, mainFile: ${mainFile}, isMarketplace: ${isMarketplace}, version: ${versionResult.trim()}`
+                );
                 
                 allPlugins.push({
                     name: plugin.name,
                     slug: plugin.slug,
                     version: versionResult.trim(),
                     status: plugin.status,
-                    mainFile: plugin.name + '.php', // Default main file
+                    mainFile: mainFile,
                     isMarketplace: isMarketplace
                 });
             }
@@ -67,43 +97,37 @@ export class PluginDetector {
         }
     }
     
-    private isMarketplacePlugin(plugin: any): boolean {
-        // Core WordPress/WooCommerce plugins that should always be treated as WordPress.org plugins
-        const corePlugins = [
-            'woocommerce', // WooCommerce core should be updated via WordPress.org
-            'woocommerce-admin',
-            'woocommerce-blocks',
-            'woocommerce-payments', // WooPayments should be updated via WordPress.org
-            'woocommerce-gateway-stripe',
-            'woocommerce-gateway-paypal',
-            'woocommerce-shipping-fedex',
-            'woocommerce-shipping-ups',
-            'woocommerce-shipping-usps',
-            'woocommerce-tax',
-            'woocommerce-bookings',
-            'woocommerce-subscriptions',
-            'woocommerce-memberships',
-            'woocommerce-product-bundles',
-            'woocommerce-composite-products',
-            'woocommerce-min-max-quantities',
-            'woocommerce-product-add-ons',
-            'woocommerce-table-rate-shipping',
-            'woocommerce-conditional-shipping-and-payments',
-            'woocommerce-checkout-field-editor'
-        ];
-        
-        // If it's a core plugin, it's NOT a marketplace plugin
-        if (corePlugins.includes(plugin.name) || corePlugins.includes(plugin.slug)) {
-            return false;
-        }
+    public isMarketplacePlugin(plugin: any): boolean {
+        // Normalize plugin identifiers for comparison (case-insensitive)
+        const normalizeIdentifier = (id: string): string => id.toLowerCase().trim();
+        const pluginNameNormalized = normalizeIdentifier(plugin.name || '');
+        const pluginSlugNormalized = normalizeIdentifier(plugin.slug || '');
         
         // Check if plugin was installed via our plugin management system
-        // Only consider it marketplace if it's in our premium selections AND not a core plugin
-        return this.premiumPluginSelections.some(premium => 
-            (premium.label === plugin.name || premium.label === plugin.slug) &&
-            !corePlugins.includes(plugin.name) &&
-            !corePlugins.includes(plugin.slug)
+        // If it's in our premium selections, it's a marketplace plugin
+        const isInPremiumSelections = this.premiumPluginSelections.some(premium => {
+            const premiumLabelNormalized = normalizeIdentifier(premium.label || '');
+            const premiumValueNormalized = normalizeIdentifier(premium.value || '');
+            
+            return premiumLabelNormalized === pluginNameNormalized || 
+                   premiumLabelNormalized === pluginSlugNormalized ||
+                   premiumValueNormalized === pluginNameNormalized ||
+                   premiumValueNormalized === pluginSlugNormalized;
+        });
+        
+        if (isInPremiumSelections) {
+            LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                `Plugin ${plugin.name} identified as marketplace plugin (found in premium selections)`
+            );
+            return true;
+        }
+        
+        // If not in premium selections, assume it's a WordPress.org plugin
+        // WordPress will handle updates for WordPress.org plugins via its update system
+        LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+            `Plugin ${plugin.name} identified as WordPress.org plugin (not in premium selections)`
         );
+        return false;
     }
 
     // Method to track plugins installed via our system

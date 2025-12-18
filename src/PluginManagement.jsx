@@ -349,10 +349,13 @@ export default class PluginManagement extends React.Component {
 			>
 				{this.renderCloneStatus()}
 				<Card style={{ zIndex: 9999, overflow: "visible" }}>
-					A la Carte plugin installation
+					<Title>Plugin Installer</Title>
+					<Text>
+						Select and install WordPress plugins on this site.
+					</Text>
 					{!this.state.cloneStatus && (
-						<>
-							<div style={{ width: "90%", margin: "1em" }}>
+						<div style={{ margin: "1em 0" }}>
+							<div style={{ width: "90%", marginBottom: "1em" }}>
 								<Select
 									options={this.state.premiumPluginSelections}
 									placeholder={"Select plugin(s) to install..."}
@@ -371,15 +374,13 @@ export default class PluginManagement extends React.Component {
 							<Button
 								className="woo button"
 								//disabled={this.state.installPluginButton}
-
 								onClick={this.installPlugins}
 							>
 								Install
 								{this.renderSpinner()}
 							</Button>
-						</>
+						</div>
 					)}
-					<p></p>
 				</Card>
 				<Divider />
 				{/**<Card>

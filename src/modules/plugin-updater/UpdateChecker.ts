@@ -28,35 +28,95 @@ export class UpdateChecker {
             const updates = JSON.parse(updateData);
             const availableUpdates: UpdateInfo[] = [];
             
+            LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                `Checking ${plugins.length} plugins for updates. Update data keys: ${updates.response ? Object.keys(updates.response).join(', ') : 'none'}`
+            );
+            
             // Check each plugin for updates
             for (const plugin of plugins) {
+                // Construct the update key in WordPress format: plugin-folder/main-file.php
                 const updateKey = `${plugin.name}/${plugin.mainFile}`;
                 
+                LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                    `Checking plugin: ${plugin.name}, updateKey: ${updateKey}, isMarketplace: ${plugin.isMarketplace}, currentVersion: ${plugin.version}`
+                );
+                
                 if (plugin.isMarketplace) {
-                    // For marketplace plugins, check GitHub for updates
+                    // For marketplace plugins, check GitHub/repository for updates
+                    LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                        `Checking marketplace plugin ${plugin.name} for GitHub updates`
+                    );
                     const latestGitHubVersion = await this.getLatestGitHubVersion(plugin.name);
-                    if (latestGitHubVersion && this.isNewerVersion(latestGitHubVersion, plugin.version)) {
-                        availableUpdates.push({
-                            plugin,
-                            updateInfo: {
-                                new_version: latestGitHubVersion,
-                                package: '', // We'll download from GitHub
-                                url: ''
-                            }
-                        });
+                    if (latestGitHubVersion) {
+                        LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                            `Found GitHub version ${latestGitHubVersion} for ${plugin.name}, comparing with current ${plugin.version}`
+                        );
+                        if (this.isNewerVersion(latestGitHubVersion, plugin.version)) {
+                            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                                `Update available for marketplace plugin ${plugin.name}: ${plugin.version} -> ${latestGitHubVersion}`
+                            );
+                            availableUpdates.push({
+                                plugin,
+                                updateInfo: {
+                                    new_version: latestGitHubVersion,
+                                    package: '', // We'll download from GitHub
+                                    url: ''
+                                }
+                            });
+                        } else {
+                            LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                                `No update needed for ${plugin.name} (${plugin.version} >= ${latestGitHubVersion})`
+                            );
+                        }
+                    } else {
+                        LocalMain.getServiceContainer().cradle.localLogger.log('warn', 
+                            `Could not get GitHub version for marketplace plugin ${plugin.name}`
+                        );
                     }
                 } else {
                     // For .org plugins, check WordPress update system
-                    if (updates.response && updates.response[updateKey]) {
-                        const updateInfo = updates.response[updateKey];
-                        availableUpdates.push({
-                            plugin,
-                            updateInfo: {
-                                new_version: updateInfo.new_version,
-                                package: updateInfo.package,
-                                url: updateInfo.url
+                    // Try the exact update key first
+                    let updateInfo = updates.response && updates.response[updateKey] 
+                        ? updates.response[updateKey] 
+                        : null;
+                    
+                    // If not found, try to find it by iterating through all update keys
+                    // Sometimes the key format might be slightly different
+                    if (!updateInfo && updates.response) {
+                        for (const key in updates.response) {
+                            if (key.startsWith(`${plugin.name}/`)) {
+                                updateInfo = updates.response[key];
+                                LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                                    `Found update for ${plugin.name} using alternative key: ${key}`
+                                );
+                                break;
                             }
-                        });
+                        }
+                    }
+                    
+                    if (updateInfo) {
+                        const newVersion = updateInfo.new_version;
+                        if (this.isNewerVersion(newVersion, plugin.version)) {
+                            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                                `Update available for .org plugin ${plugin.name}: ${plugin.version} -> ${newVersion}`
+                            );
+                            availableUpdates.push({
+                                plugin,
+                                updateInfo: {
+                                    new_version: newVersion,
+                                    package: updateInfo.package,
+                                    url: updateInfo.url
+                                }
+                            });
+                        } else {
+                            LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                                `No update needed for ${plugin.name} (${plugin.version} >= ${newVersion})`
+                            );
+                        }
+                    } else {
+                        LocalMain.getServiceContainer().cradle.localLogger.log('debug', 
+                            `No update info found in WordPress for .org plugin ${plugin.name} (key: ${updateKey})`
+                        );
                     }
                 }
             }
@@ -224,11 +284,28 @@ export class UpdateChecker {
     }
 
     private isNewerVersion(newVersion: string, currentVersion: string): boolean {
-        // Simple version comparison - could be enhanced with proper semver parsing
-        const newParts = newVersion.split('.').map(Number);
-        const currentParts = currentVersion.split('.').map(Number);
+        // Normalize versions by removing any non-numeric suffixes (e.g., "1.2.3-beta" -> "1.2.3")
+        const normalizeVersion = (version: string): string => {
+            // Remove any trailing non-numeric characters and whitespace
+            return version.trim().replace(/[^0-9.].*$/, '');
+        };
         
-        for (let i = 0; i < Math.max(newParts.length, currentParts.length); i++) {
+        const normalizedNew = normalizeVersion(newVersion);
+        const normalizedCurrent = normalizeVersion(currentVersion);
+        
+        // Split into parts and convert to numbers
+        const newParts = normalizedNew.split('.').map(part => {
+            const num = parseInt(part, 10);
+            return isNaN(num) ? 0 : num;
+        });
+        const currentParts = normalizedCurrent.split('.').map(part => {
+            const num = parseInt(part, 10);
+            return isNaN(num) ? 0 : num;
+        });
+        
+        // Compare version parts
+        const maxLength = Math.max(newParts.length, currentParts.length);
+        for (let i = 0; i < maxLength; i++) {
             const newPart = newParts[i] || 0;
             const currentPart = currentParts[i] || 0;
             
@@ -236,6 +313,7 @@ export class UpdateChecker {
             if (newPart < currentPart) return false;
         }
         
+        // Versions are equal
         return false;
     }
 }

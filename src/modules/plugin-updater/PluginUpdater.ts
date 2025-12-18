@@ -14,196 +14,104 @@ export class PluginUpdater {
     async updateSelectedPlugins(site: any, updates: UpdateInfo[]): Promise<void> {
         LocalMain.getServiceContainer().cradle.localLogger.log('info', `Starting update process for ${updates.length} selected plugins`);
         
-        // Extract plugin slugs from updates
-        const pluginSlugs = updates.map(update => update.plugin.name);
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Plugin slugs to update: ${pluginSlugs.join(', ')}`);
+        // First, get the actual activation status for each plugin from WordPress
+        // This ensures we preserve the plugin's state after update
+        for (const update of updates) {
+            try {
+                const pluginStatusResult = await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                    'plugin', 'get', update.plugin.name, '--field=status'
+                ]);
+                const pluginStatus = pluginStatusResult.trim().toLowerCase();
+                update.plugin.status = pluginStatus; // Update with actual status
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `Plugin ${update.plugin.name} current status: ${pluginStatus}`
+                );
+            } catch (statusError) {
+                LocalMain.getServiceContainer().cradle.localLogger.log('warn', 
+                    `Could not get plugin status for ${update.plugin.name}: ${statusError.message}. Assuming inactive.`
+                );
+                update.plugin.status = 'inactive'; // Default to inactive if we can't determine
+            }
+        }
+        
+        // Separate updates by source (marketplace vs WordPress.org)
+        const marketplaceUpdates: UpdateInfo[] = [];
+        const orgUpdates: UpdateInfo[] = [];
+        
+        // Separate updates by source using the isMarketplace flag from detection phase
+        // The flag is determined during update checking and should be accurate
+        for (const update of updates) {
+            // Use the isMarketplace flag that was determined during update checking
+            // This ensures consistency between check and update phases
+            if (update.plugin.isMarketplace) {
+                marketplaceUpdates.push(update);
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `Plugin ${update.plugin.name} (v${update.plugin.version} -> v${update.updateInfo.new_version}, status: ${update.plugin.status}) ` +
+                    `will be updated from marketplace repository (all-plugins)`
+                );
+            } else {
+                orgUpdates.push(update);
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `Plugin ${update.plugin.name} (v${update.plugin.version} -> v${update.updateInfo.new_version}, status: ${update.plugin.status}) ` +
+                    `will be updated from WordPress.org`
+                );
+            }
+        }
         
         try {
-            // Use the existing plugin management system to reinstall/update plugins
-            await this.updatePluginsUsingExistingSystem(site, pluginSlugs);
+            // Update marketplace plugins from repository
+            for (const update of marketplaceUpdates) {
+                await this.updatePremiumPluginFromGitHub(site, update);
+            }
             
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully updated ${updates.length} plugin(s)`);
+            // Update WordPress.org plugins using WP-CLI
+            for (const update of orgUpdates) {
+                await this.updateStandardPlugin(site, update);
+            }
+            
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Successfully updated ${marketplaceUpdates.length} marketplace plugin(s) and ${orgUpdates.length} WordPress.org plugin(s)`
+            );
         } catch (error) {
             LocalMain.getServiceContainer().cradle.localLogger.log('error', `Failed to update plugins: ${error.message}`);
             throw error;
         }
     }
     
-    private async updatePluginsUsingExistingSystem(site: any, pluginSlugs: string[]): Promise<void> {
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Using existing plugin management system to update plugins`);
-        
-        // Use the existing installPlugins function by calling it directly
-        // This function handles both premium and standard plugins automatically
-        return new Promise((resolve, reject) => {
-            // We need to access the installPlugins function from the main.ts scope
-            // Since it's not exported, we'll recreate the logic here but simpler
-            
-            // Separate premium and standard plugins
-            const premiumPlugins = [];
-            const standardPlugins = [];
-            
-            pluginSlugs.forEach(slug => {
-                // Check if this is a premium plugin by looking at our tracked plugins
-                if (this.isPremiumPlugin({ name: slug })) {
-                    premiumPlugins.push(slug);
-                } else {
-                    standardPlugins.push(slug);
-                }
-            });
-            
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Premium plugins: ${premiumPlugins.join(', ')}`);
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Standard plugins: ${standardPlugins.join(', ')}`);
-            
-            // Use the existing downloadPlugins function logic
-            this.downloadAndInstallPlugins(site, premiumPlugins, standardPlugins)
-                .then(() => {
-                    LocalMain.getServiceContainer().cradle.localLogger.log('info', `All plugins updated successfully`);
-                    resolve();
-                })
-                .catch((error) => {
-                    LocalMain.getServiceContainer().cradle.localLogger.log('error', `Failed to update plugins: ${error.message}`);
-                    reject(error);
-                });
-        });
-    }
-    
-    private async downloadAndInstallPlugins(site: any, premiumPlugins: string[], standardPlugins: string[]): Promise<void> {
-        // Download premium plugins first - this returns zip file paths
-        const zipFiles = await this.downloadPlugins(premiumPlugins);
-        
-        // Combine zip files (for premium plugins) with slugs (for standard plugins)
-        const allPlugins = zipFiles.concat(standardPlugins);
-        
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Installing ${allPlugins.length} plugins: ${allPlugins.join(', ')}`);
-        
-        // Install all plugins using the same WP-CLI command as the existing system
-        for (const plugin of allPlugins) {
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Installing plugin: ${plugin}`);
-            
-            try {
-                await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-                    "plugin", "install", plugin, "--activate", "--force"
-                ]);
-                
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully installed plugin: ${plugin} on site: ${site.id}`);
-                
-                // Clean up downloaded files for premium plugins (zip files)
-                if (zipFiles.includes(plugin)) {
-                    const fs = require('fs');
-                    fs.unlink(plugin, (err: any) => {
-                        if (err) {
-                            LocalMain.getServiceContainer().cradle.localLogger.log('error', `Failed to clean up ${plugin}: ${err.message}`);
-                        } else {
-                            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Cleaned up ${plugin}`);
-                        }
-                    });
-                }
-            } catch (error) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', `Failed to install ${plugin}: ${error.message}`);
-                throw error;
-            }
-        }
-    }
-    
-    private async downloadPlugins(pluginsToInstall: string[]): Promise<string[]> {
-        const zipFiles = [];
-        
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Starting download of ${pluginsToInstall.length} premium plugins: ${pluginsToInstall.join(', ')}`);
-        
-        for (const pluginSlug of pluginsToInstall) {
-            const outputFile = this.context.environment.userDataPath + `/addons/wizard-hat-toolkit/${pluginSlug}.zip`;
-            
-            try {
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Getting download URL for ${pluginSlug}`);
-                const fileUrl = await this.getDownloadUrl(pluginSlug);
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Downloading ${pluginSlug} from: ${fileUrl}`);
-                
-                const result = await this.downloadZipFromGitHub(fileUrl, outputFile);
-                zipFiles.push(result);
-                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Successfully downloaded ${pluginSlug} to: ${result}`);
-            } catch (error) {
-                LocalMain.getServiceContainer().cradle.localLogger.log('error', `Failed to download ${pluginSlug}: ${error.message}`);
-                throw error;
-            }
-        }
-        
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Downloaded ${zipFiles.length} plugin zip files`);
-        return zipFiles;
-    }
-    
-    /**
-     * Get download path for a plugin from local repository
-     * Note: This method now returns the local file path instead of a GitHub URL
-     */
-    private async getDownloadUrl(pluginSlug: string): Promise<string> {
-        const fs = require('fs');
-        const path = require('path');
-
-        // Get the user-configured repository path
-        const repositoryPath = LocalMain.UserData.get('allPluginsRepositoryPath');
-        if (!repositoryPath) {
-            throw new Error('Repository path not configured. Please set up your repository path first.');
-        }
-
-        if (!fs.existsSync(repositoryPath)) {
-            throw new Error(`Repository path does not exist: ${repositoryPath}`);
-        }
-
-        // Construct the path to the plugin zip file
-        const pluginZipPath = path.join(repositoryPath, 'product-packages', pluginSlug, `${pluginSlug}.zip`);
-        
-        if (!fs.existsSync(pluginZipPath)) {
-            throw new Error(`Plugin zip file not found at ${pluginZipPath}`);
-        }
-
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Found zip file for ${pluginSlug} at: ${pluginZipPath}`);
-        return pluginZipPath;
-    }
-    
-    /**
-     * Copy plugin zip file from local repository to output location
-     * Note: This method now copies from local repository instead of downloading from GitHub
-     */
-    private async downloadZipFromGitHub(filePath: string, outputFile: string): Promise<string> {
-        const fs = require('fs');
-        const path = require('path');
-
-        if (!fs.existsSync(filePath)) {
-            throw new Error(`Plugin zip file not found at ${filePath}`);
-        }
-
-        // Ensure output directory exists
-        const outputDir = path.dirname(outputFile);
-        if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-        }
-
-        // Copy the file from local repository to output location
-        fs.copyFileSync(filePath, outputFile);
-        
-        LocalMain.getServiceContainer().cradle.localLogger.log('info', `Copied plugin zip from local repository to: ${outputFile}`);
-        return outputFile;
-    }
-    
-    private async updatePremiumPlugin(site: any, update: UpdateInfo): Promise<void> {
-        // For marketplace plugins, we need to use our GitHub repository access
-        // since WooCommerce Helper can't download to local sites
-        await this.updatePremiumPluginFromGitHub(site, update);
-    }
 
     private async updatePremiumPluginFromGitHub(site: any, update: UpdateInfo): Promise<void> {
-        // Download latest version from GitHub using our repository access
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+            `Starting marketplace plugin update for ${update.plugin.name} from all-plugins repository`
+        );
+        
+        // Download latest version from all-plugins repository
         const outputFile = `${this.context.environment.userDataPath}/addons/wizard-hat-toolkit/${update.plugin.name}-update.zip`;
         
         try {
-            // Download from GitHub repository
+            // Use the plugin's status from the update object (set in updateSelectedPlugins)
+            // We need to preserve this state after the update
+            const wasActive = update.plugin.status === 'active';
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Plugin ${update.plugin.name} current status: ${update.plugin.status} (will ${wasActive ? 'reactivate' : 'leave inactive'} after update)`
+            );
+            
+            // Download from all-plugins repository (local repository path)
             await this.downloadLatestVersion(update.plugin.name, outputFile);
             
-            // Deactivate the plugin first
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Deactivating plugin: ${update.plugin.name}`);
-            await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-                'plugin', 'deactivate', update.plugin.name
-            ]);
+            // Only deactivate if the plugin is currently active
+            if (wasActive) {
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Deactivating plugin: ${update.plugin.name}`);
+                await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                    'plugin', 'deactivate', update.plugin.name
+                ], {
+                    skipPlugins: false, // Don't skip plugins - we need WooCommerce to be available
+                    skipThemes: false
+                });
+            } else {
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `Plugin ${update.plugin.name} is not active, skipping deactivation`
+                );
+            }
             
             // Install the update (this will overwrite the existing plugin)
             LocalMain.getServiceContainer().cradle.localLogger.log('info', `Installing plugin update from: ${outputFile}`);
@@ -211,11 +119,20 @@ export class PluginUpdater {
                 'plugin', 'install', outputFile, '--force'
             ]);
             
-            // Reactivate the plugin
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Reactivating plugin: ${update.plugin.name}`);
-            await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-                'plugin', 'activate', update.plugin.name
-            ]);
+            // Only reactivate if the plugin was active before the update
+            if (wasActive) {
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', `Reactivating plugin: ${update.plugin.name}`);
+                await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                    'plugin', 'activate', update.plugin.name
+                ], {
+                    skipPlugins: false, // Don't skip plugins - we need WooCommerce to be available for dependent plugins
+                    skipThemes: false
+                });
+            } else {
+                LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                    `Plugin ${update.plugin.name} was inactive before update, leaving it inactive`
+                );
+            }
             
             // Clear WordPress caches and refresh update information
             await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
@@ -302,20 +219,42 @@ export class PluginUpdater {
     }
     
     private async updateStandardPlugin(site: any, update: UpdateInfo): Promise<void> {
-        // Update the plugin
-        await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-            'plugin', 'update', update.plugin.name
-        ]);
+        LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+            `Starting WordPress.org plugin update for ${update.plugin.name}`
+        );
         
-        // Clear WordPress caches to ensure plugin info is refreshed
-        await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-            'cache', 'flush'
-        ]);
-        
-        // Force WordPress to refresh plugin information
-        await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
-            'eval', 'wp_cache_flush(); delete_site_transient("update_plugins");'
-        ]);
+        try {
+            // Update the plugin using WP-CLI (this will download from WordPress.org)
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Updating ${update.plugin.name} from WordPress.org to version ${update.updateInfo.new_version}`
+            );
+            
+            await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                'plugin', 'update', update.plugin.name
+            ]);
+            
+            // Clear WordPress caches to ensure plugin info is refreshed
+            await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                'cache', 'flush'
+            ]);
+            
+            // Force WordPress to refresh plugin information
+            await LocalMain.getServiceContainer().cradle.wpCli.run(site, [
+                'eval', 'wp_cache_flush(); delete_site_transient("update_plugins");'
+            ]);
+            
+            // Verify the update was successful
+            await this.verifyPluginUpdate(site, update.plugin.name, update.updateInfo.new_version);
+            
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Successfully updated WordPress.org plugin ${update.plugin.name}`
+            );
+        } catch (error) {
+            LocalMain.getServiceContainer().cradle.localLogger.log('error', 
+                `Failed to update WordPress.org plugin ${update.plugin.name}: ${error.message}`
+            );
+            throw new Error(`Failed to update WordPress.org plugin ${update.plugin.name}: ${error.message}`);
+        }
     }
 
     private async downloadLatestVersion(pluginName: string, outputFile: string): Promise<void> {
@@ -323,25 +262,41 @@ export class PluginUpdater {
         const path = require('path');
 
         try {
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Attempting to download ${pluginName} from local repository`);
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Attempting to download ${pluginName} from all-plugins repository`
+            );
             
             // Get the user-configured repository path
             const repositoryPath = LocalMain.UserData.get('allPluginsRepositoryPath');
             if (!repositoryPath) {
-                throw new Error('Repository path not configured. Please set up your repository path first.');
+                throw new Error(
+                    'All-plugins repository path not configured. ' +
+                    'Please set up your repository path in the Plugin Management settings first. ' +
+                    'Marketplace plugins must be updated from the all-plugins repository.'
+                );
             }
 
             if (!fs.existsSync(repositoryPath)) {
-                throw new Error(`Repository path does not exist: ${repositoryPath}`);
+                throw new Error(
+                    `All-plugins repository path does not exist: ${repositoryPath}. ` +
+                    'Please verify your repository path in the Plugin Management settings.'
+                );
             }
 
             // Construct the path to the plugin zip file
+            // Marketplace plugins are stored in: {repository}/product-packages/{pluginName}/{pluginName}.zip
             const pluginZipPath = path.join(repositoryPath, 'product-packages', pluginName, `${pluginName}.zip`);
             
-            LocalMain.getServiceContainer().cradle.localLogger.log('info', `Looking for plugin at: ${pluginZipPath}`);
+            LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+                `Looking for marketplace plugin at: ${pluginZipPath}`
+            );
 
             if (!fs.existsSync(pluginZipPath)) {
-                throw new Error(`Plugin zip file not found at ${pluginZipPath}. Please ensure the repository is up to date and contains the plugin.`);
+                throw new Error(
+                    `Marketplace plugin zip file not found at ${pluginZipPath}. ` +
+                    'This plugin may not be available in the all-plugins repository, or the repository may need to be updated. ' +
+                    'Please ensure the repository is up to date and contains this plugin.'
+                );
             }
 
             // Ensure output directory exists
@@ -359,43 +314,32 @@ export class PluginUpdater {
         }
     }
 
+    /**
+     * Check if a plugin is a premium/marketplace plugin
+     * Note: This method is kept for backward compatibility but the main update flow
+     * now uses the isMarketplace flag from UpdateInfo which is determined during update checking.
+     * This ensures consistency between check and update phases.
+     * 
+     * The logic is now simplified: if a plugin is in premium selections, it's a marketplace plugin.
+     * Otherwise, it's assumed to be a WordPress.org plugin.
+     */
     private isPremiumPlugin(plugin: any): boolean {
-        // Core WordPress/WooCommerce plugins that should always be treated as WordPress.org plugins
-        const corePlugins = [
-            'woocommerce', // WooCommerce core should be updated via WordPress.org
-            'woocommerce-admin',
-            'woocommerce-blocks',
-            'woocommerce-payments', // WooPayments should be updated via WordPress.org
-            'woocommerce-gateway-stripe',
-            'woocommerce-gateway-paypal',
-            'woocommerce-shipping-fedex',
-            'woocommerce-shipping-ups',
-            'woocommerce-shipping-usps',
-            'woocommerce-tax',
-            'woocommerce-bookings',
-            'woocommerce-subscriptions',
-            'woocommerce-memberships',
-            'woocommerce-product-bundles',
-            'woocommerce-composite-products',
-            'woocommerce-min-max-quantities',
-            'woocommerce-product-add-ons',
-            'woocommerce-table-rate-shipping',
-            'woocommerce-conditional-shipping-and-payments',
-            'woocommerce-checkout-field-editor'
-        ];
+        // Normalize plugin identifiers for comparison (case-insensitive)
+        const normalizeIdentifier = (id: string): string => id.toLowerCase().trim();
+        const pluginNameNormalized = normalizeIdentifier(plugin.name || '');
+        const pluginSlugNormalized = normalizeIdentifier(plugin.slug || '');
         
-        // If it's a core plugin, it's NOT a premium plugin
-        if (corePlugins.includes(plugin.name) || corePlugins.includes(plugin.slug)) {
-            return false;
-        }
-        
-        // Use the same logic as the existing system - check against premiumPluginSelections
-        // Only consider it premium if it's in our premium selections AND not a core plugin
-        return this.premiumPluginSelections.some(premium => 
-            (premium.label === plugin.name || premium.label === plugin.slug) &&
-            !corePlugins.includes(plugin.name) &&
-            !corePlugins.includes(plugin.slug)
-        );
+        // Check if plugin was installed via our plugin management system
+        // If it's in our premium selections, it's a marketplace plugin
+        return this.premiumPluginSelections.some(premium => {
+            const premiumLabelNormalized = normalizeIdentifier(premium.label || '');
+            const premiumValueNormalized = normalizeIdentifier(premium.value || '');
+            
+            return premiumLabelNormalized === pluginNameNormalized || 
+                   premiumLabelNormalized === pluginSlugNormalized ||
+                   premiumValueNormalized === pluginNameNormalized ||
+                   premiumValueNormalized === pluginSlugNormalized;
+        });
     }
 
     private logUpdateAttempt(siteId: string, pluginName: string): void {
