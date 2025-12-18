@@ -2,6 +2,27 @@
 
 > **Note:** Jurassic Tube feature has been deprecated and removed as of the latest version.
 
+### 1.8.0
+* **Plugin Update Detection Fixes:**
+  * Fix main file detection: Now correctly identifies plugin main files using WordPress `get_plugins()` instead of assuming `plugin.name + .php`
+  * Fix update key construction: Uses correct main file names to match WordPress `update_plugins` transient format
+  * Improve version comparison: Better handling of non-numeric suffixes and edge cases
+  * Remove static corePlugins array: Now uses dynamic detection based on premium plugin selections
+  * Improve marketplace plugin identification: Better normalization and checks both label and value fields
+
+* **Plugin Update Application Fixes:**
+  * Preserve plugin activation state: Only reactivates plugins that were active before update
+  * Fix --skip-plugins issue: Passes `skipPlugins: false` to WP-CLI commands to allow WooCommerce-dependent plugins to activate properly
+
+* **Repository Refresh Improvements:**
+  * Fix branch detection: Automatically detects repository branch (master/main) and uses correct remote branch for all git operations
+  * Add comprehensive logging: All git operations now log detailed output to browser console via IPC events
+  * Improve error handling: Better error messages and fallback logic for repository operations
+  * Add repository debug logging: Git command output is now visible in browser console for troubleshooting
+
+* **Documentation:**
+  * Add REPOSITORY_REFRESH_TRACE.md: Complete code path documentation for repository refresh process
+
 ### 1.7.0
 * UI improvements: Hide selection dropdown and install/update buttons during repository refresh on initial tab launch
 * Add spinner to repository refresh status notice for better visual feedback

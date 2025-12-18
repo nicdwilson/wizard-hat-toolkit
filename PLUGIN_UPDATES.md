@@ -105,16 +105,33 @@ The plugin update system automatically detects, checks, and updates WooCommerce 
 - Marketplace plugins are tracked when installed via the Plugin Management module
 - Tracking information is stored in Local's user data using `installedMarketplacePlugins`
 - Plugin detection uses WP-CLI to get installed plugin information
+- **Plugin Identification:**
+  - Uses dynamic detection: If plugin is in premium selections, it's a marketplace plugin
+  - Otherwise, it's treated as a WordPress.org plugin
+  - No hardcoded plugin lists - uses actual premium plugin selections as source of truth
+  - Properly normalizes identifiers (case-insensitive) for accurate matching
 
 ### Update Sources
 - **Standard Plugins**: Uses WordPress's built-in update mechanism via `wp_update_plugins()`
-- **Premium Plugins**: Checks GitHub releases using the Octokit library
-- **Download**: Uses existing GitHub download mechanisms from the plugin management system
+  - Correctly identifies plugin main files using WordPress `get_plugins()` function
+  - Constructs update keys in format `{plugin-folder}/{main-file.php}` to match WordPress transient format
+  - Falls back to alternative key matching if exact key not found
+- **Premium Plugins**: Checks all-plugins repository for newer versions
+  - Extracts version from plugin's main PHP file inside the zip
+  - Downloads from local all-plugins repository path
+  - Uses dynamic detection based on premium plugin selections (no hardcoded lists)
 
 ### Error Handling
 - Comprehensive error handling for network issues, permission problems, and plugin conflicts
 - Detailed logging of all update operations
 - Graceful fallback when updates fail
+- **Activation State Preservation:**
+  - Checks plugin activation status before updating
+  - Only deactivates/reactivates plugins that were active
+  - Leaves inactive plugins inactive after update
+- **WP-CLI Options:**
+  - Passes `skipPlugins: false` and `skipThemes: false` to all WP-CLI commands
+  - Ensures WooCommerce and other dependencies are available during activation
 
 ### Security
 - Uses existing GitHub token authentication
@@ -157,15 +174,32 @@ The plugin update system automatically detects, checks, and updates WooCommerce 
 ## Troubleshooting
 
 ### Common Issues
-1. **Updates not detected**: Ensure plugins were installed via Plugin Management module
-2. **GitHub API errors**: Verify GitHub token has proper permissions
-3. **Update failures**: Check Local logs for detailed error information
-4. **Settings not saving**: Ensure Local has proper file system permissions
+1. **Updates not detected**: 
+   - Ensure plugins were installed via Plugin Management module
+   - Check that plugin main file is correctly identified (check browser console logs)
+   - Verify update key matches WordPress format: `{plugin-folder}/{main-file.php}`
+2. **Repository refresh issues**:
+   - Check browser console for detailed git operation logs
+   - Verify repository branch (master vs main) is correctly detected
+   - Ensure repository path is correctly configured
+   - Check that git is accessible in PATH
+3. **Plugin activation errors**:
+   - Verify WooCommerce is installed and active for dependent plugins
+   - Check that `skipPlugins: false` is being passed (check logs)
+   - Ensure plugin was active before update if expecting reactivation
+4. **Update failures**: Check Local logs and browser console for detailed error information
+5. **Settings not saving**: Ensure Local has proper file system permissions
 
 ### Debug Information
 - All update operations are logged to Local's logger
 - Error details are provided in the Plugin Updates UI
 - Update status is displayed in real-time
+- **Repository Refresh Logging:**
+  - All git operations (fetch, pull, rev-list) are logged with detailed output
+  - Git command stdout/stderr is captured and displayed in browser console
+  - Branch detection and remote branch information is logged
+  - Commit counts and update status are logged at each step
+  - Logs are sent to browser console via IPC events for easy debugging
 
 ## Dependencies
 

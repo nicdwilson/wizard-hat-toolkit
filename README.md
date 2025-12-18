@@ -30,6 +30,9 @@ The Wizard Hat Toolkit requires access to the plugins repository to install WooC
    - The toolkit will validate the path and initialize the repository
 
 4. **Repository refresh**: On first launch of the installer or updater tabs, the toolkit will automatically refresh the repository to ensure you have the latest plugin information. This may take a moment, and you'll see a progress indicator.
+   - The toolkit automatically detects the repository branch (master or main)
+   - Git operations are logged to the browser console for debugging
+   - Repository refresh uses `git fetch` and `git pull` to stay up to date
 
 **Note**: The repository path is saved and will be remembered for future use. You can update it at any time by accessing the repository setup interface.
 
