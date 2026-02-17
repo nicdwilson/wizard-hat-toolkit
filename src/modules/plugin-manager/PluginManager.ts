@@ -349,6 +349,20 @@ export class PluginManager {
     }
 
     /**
+     * Force refresh registry data with progress callback
+     */
+    public async forceRefresh(progressCallback?: (status: string) => void): Promise<void> {
+        await this.registry.forceRefresh(progressCallback);
+    }
+
+    /**
+     * Get the plugin registry instance
+     */
+    public getRegistry(): PluginRegistry {
+        return this.registry;
+    }
+
+    /**
      * Check if registry needs refresh
      */
     public needsRefresh(): boolean {

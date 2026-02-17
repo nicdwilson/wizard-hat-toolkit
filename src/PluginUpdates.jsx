@@ -25,12 +25,16 @@ export default class PluginUpdates extends React.Component {
 			cloneStatus: null,
 			cloneError: null,
 			cloneHelpText: null,
+			lastUpdated: null,
+			refreshing: false,
 		};
 		this.checkUpdates = this.checkUpdates.bind(this);
 		this.applySelectedUpdates = this.applySelectedUpdates.bind(this);
 		this.toggleUpdateSelection = this.toggleUpdateSelection.bind(this);
 		this.selectAllUpdates = this.selectAllUpdates.bind(this);
 		this.deselectAllUpdates = this.deselectAllUpdates.bind(this);
+		this.handleForceRefresh = this.handleForceRefresh.bind(this);
+		this.formatDate = this.formatDate.bind(this);
 	}
 
 	componentDidMount() {
@@ -101,7 +105,11 @@ export default class PluginUpdates extends React.Component {
 				cloneStatus: null,
 				cloneError: null,
 				cloneHelpText: null,
+				refreshing: false,
+				lastUpdated: data.lastUpdated,
 			});
+			// Refresh repository status
+			ipcRenderer.send("get-repository-status");
 		});
 
 		ipcRenderer.on("repository-clone-error", (event, data) => {
@@ -115,6 +123,14 @@ export default class PluginUpdates extends React.Component {
 		// Listen for repository debug logs
 		ipcRenderer.on("repository-debug-log", (event, data) => {
 			console.log(data.message);
+		});
+
+		// Get repository status
+		ipcRenderer.send("get-repository-status");
+		ipcRenderer.on("repository-status", (event, data) => {
+			this.setState({
+				lastUpdated: data.lastUpdated,
+			});
 		});
 
 		// Trigger repository initialization when component mounts (tab is opened)
@@ -132,6 +148,32 @@ export default class PluginUpdates extends React.Component {
 		ipcRenderer.removeAllListeners("repository-clone-complete");
 		ipcRenderer.removeAllListeners("repository-clone-error");
 		ipcRenderer.removeAllListeners("repository-debug-log");
+		ipcRenderer.removeAllListeners("repository-status");
+	}
+
+	handleForceRefresh() {
+		this.setState({ refreshing: true, cloneError: null });
+		ipcRenderer.send("force-refresh-repository");
+	}
+
+	formatDate(dateString) {
+		if (!dateString) return "Never";
+		try {
+			const date = new Date(dateString);
+			const now = new Date();
+			const diffMs = now.getTime() - date.getTime();
+			const diffMins = Math.floor(diffMs / 60000);
+			const diffHours = Math.floor(diffMs / 3600000);
+			const diffDays = Math.floor(diffMs / 86400000);
+
+			if (diffMins < 1) return "Just now";
+			if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+			if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+			if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+			return date.toLocaleString();
+		} catch (error) {
+			return "Unknown";
+		}
 	}
 
 	checkUpdates() {
@@ -385,15 +427,41 @@ export default class PluginUpdates extends React.Component {
 			<Container>
 				{this.renderCloneStatus()}
 				<Card>
-					<Title>Plugin Updates</Title>
-					<Text>
-						Check for and update WordPress plugins on this site.
-					</Text>
-					{this.props.siteStatuses && this.props.siteStatuses[this.state.siteId] !== "running" && (
-						<Text fontSize="s" style={{ color: "#ff6b6b", margin: "0.5em 0" }}>
-							⚠️ Site must be running to check for updates
-						</Text>
-					)}
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1em" }}>
+						<div>
+							<Title>Plugin Updates</Title>
+							<Text>
+								Check for and update WordPress plugins on this site.
+							</Text>
+							{this.state.lastUpdated && !this.state.cloneStatus && (
+								<Text fontSize="s" style={{ color: "#666", marginTop: "0.5em" }}>
+									Repository last updated: {this.formatDate(this.state.lastUpdated)}
+								</Text>
+							)}
+							{this.props.siteStatuses && this.props.siteStatuses[this.state.siteId] !== "running" && (
+								<Text fontSize="s" style={{ color: "#ff6b6b", margin: "0.5em 0" }}>
+									⚠️ Site must be running to check for updates
+								</Text>
+							)}
+						</div>
+						{!this.state.cloneStatus && (
+							<Button
+								className="woo button"
+								onClick={this.handleForceRefresh}
+								disabled={this.state.refreshing}
+								style={{ fontSize: "12px", padding: "6px 12px" }}
+							>
+								{this.state.refreshing ? (
+									<span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+										<Spinner />
+										Refreshing...
+									</span>
+								) : (
+									"Refresh Repository"
+								)}
+							</Button>
+						)}
+					</div>
 					{!this.state.cloneStatus && (
 						<div style={{ margin: "1em 0" }}>
 							<Button

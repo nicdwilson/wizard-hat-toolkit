@@ -477,17 +477,71 @@ export default function (context) {
 	ipcMain.on('save-repository-path', (event, repositoryPath: string) => {
 		try {
 			LocalMain.UserData.set('allPluginsRepositoryPath', repositoryPath);
-			LocalMain.getServiceContainer().cradle.localLogger.log('info', 
+			LocalMain.getServiceContainer().cradle.localLogger.log('info',
 				`Saved repository path: ${repositoryPath}`
 			);
 			LocalMain.sendIPCEvent('repository-path-saved', { success: true });
 		} catch (error) {
-			LocalMain.getServiceContainer().cradle.localLogger.log('error', 
+			LocalMain.getServiceContainer().cradle.localLogger.log('error',
 				`Error saving repository path: ${error.message}`
 			);
-			LocalMain.sendIPCEvent('repository-path-saved', { 
-				success: false, 
-				error: error.message 
+			LocalMain.sendIPCEvent('repository-path-saved', {
+				success: false,
+				error: error.message
+			});
+		}
+	});
+
+	// Force refresh repository
+	ipcMain.on('force-refresh-repository', async (event) => {
+		try {
+			const progressCallback = (status: string) => {
+				LocalMain.sendIPCEvent('repository-clone-progress', { status });
+			};
+
+			await pluginManager.forceRefresh(progressCallback);
+
+			// Get updated repository status
+			const registry = pluginManager.getRegistry();
+			const lastUpdated = registry.getLastUpdated();
+
+			LocalMain.sendIPCEvent('repository-clone-complete', {
+				success: true,
+				lastUpdated: lastUpdated.toISOString()
+			});
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('error',
+				`Error forcing repository refresh: ${error.message}`
+			);
+			LocalMain.sendIPCEvent('repository-clone-error', {
+				error: error.message,
+				helpText: getGitInstallationHelp(error.message)
+			});
+		}
+	});
+
+	// Get repository status (path, last updated, etc.)
+	ipcMain.on('get-repository-status', async (event) => {
+		try {
+			const registry = pluginManager.getRegistry();
+			const repositoryPath = registry.getConfiguredRepositoryPath();
+			const lastUpdated = registry.getLastUpdated();
+			const isInitialized = pluginManager.isInitialized;
+
+			LocalMain.sendIPCEvent('repository-status', {
+				path: repositoryPath,
+				lastUpdated: lastUpdated.toISOString(),
+				isInitialized: isInitialized
+			});
+		} catch (error) {
+			LocalMain.getServiceContainer().cradle.localLogger.log('error',
+				`Error getting repository status: ${error.message}`
+			);
+			LocalMain.sendIPCEvent('repository-status', {
+				path: null,
+				lastUpdated: null,
+				isInitialized: false,
+				error: error.message
 			});
 		}
 	});

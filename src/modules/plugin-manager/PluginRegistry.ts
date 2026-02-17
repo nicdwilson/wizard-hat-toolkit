@@ -178,6 +178,30 @@ export class PluginRegistry {
     }
 
     /**
+     * Force refresh of registry data with progress callback
+     * Uses Git only
+     */
+    public async forceRefresh(progressCallback?: (status: string) => void): Promise<void> {
+        progressCallback?.('Force refreshing repository...');
+        await this.initialize(this.githubToken || undefined, progressCallback);
+        progressCallback?.('Repository refreshed successfully');
+    }
+
+    /**
+     * Get the last updated timestamp
+     */
+    public getLastUpdated(): Date {
+        return this.registryData.lastUpdated;
+    }
+
+    /**
+     * Get the configured repository path
+     */
+    public getConfiguredRepositoryPath(): string | null {
+        return LocalMain.UserData.get('allPluginsRepositoryPath') || null;
+    }
+
+    /**
      * Track a plugin installation for marketplace detection
      */
     public trackInstalledPlugin(pluginName: string): void {

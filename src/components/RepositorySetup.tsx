@@ -105,9 +105,62 @@ export default class RepositorySetup extends Component<any, RepositorySetupState
 						Before using the plugin manager, you need to set up your local copy of the all-plugins repository.
 					</Text>
 
+					<Card style={{ backgroundColor: "#e8ffe8", padding: "1em", marginBottom: "1em" }}>
+						<Title style={{ marginBottom: "0.5em", fontSize: "16px" }}>
+							Option 1: GitHub Desktop (Recommended for Beginners)
+						</Title>
+						<ol style={{ paddingLeft: "1.5em", lineHeight: "1.6" }}>
+							<li style={{ marginBottom: "0.5em" }}>
+								<Text style={{ fontSize: "12px" }}>
+									<strong>Download GitHub Desktop:</strong> Go to{" "}
+									<a href="https://desktop.github.com" target="_blank" style={{ color: "#0066cc" }}>
+										desktop.github.com
+									</a>{" "}
+									and download the app for Mac.
+								</Text>
+							</li>
+							<li style={{ marginBottom: "0.5em" }}>
+								<Text style={{ fontSize: "12px" }}>
+									<strong>Install and open GitHub Desktop:</strong> Install the app and launch it.
+								</Text>
+							</li>
+							<li style={{ marginBottom: "0.5em" }}>
+								<Text style={{ fontSize: "12px" }}>
+									<strong>Sign in to GitHub:</strong> When prompted, click "Sign in to GitHub.com" and follow the prompts to connect your GitHub account.
+								</Text>
+							</li>
+							<li style={{ marginBottom: "0.5em" }}>
+								<Text style={{ fontSize: "12px" }}>
+									<strong>Clone the repository:</strong> Click "Clone a Repository from the Internet..." (or File &gt; Clone Repository).
+									<br />
+									In the URL tab, enter:{" "}
+									<code style={{ backgroundColor: "#e8e8e8", padding: "0.2em 0.4em", borderRadius: "3px" }}>
+										https://github.com/woocommerce/all-plugins.git
+									</code>
+									<br />
+									Choose where to save it on your computer (note this location!), then click "Clone".
+								</Text>
+							</li>
+							<li style={{ marginBottom: "0.5em" }}>
+								<Text style={{ fontSize: "12px" }}>
+									<strong>Find the repository path:</strong> In GitHub Desktop, go to Repository &gt; "Show in Finder" to see where it was saved.
+									<br />
+									Right-click the "all-plugins" folder and select "Get Info" to see the full path.
+									<br />
+									Example: <code style={{ backgroundColor: "#e8e8e8", padding: "0.2em 0.4em", borderRadius: "3px" }}>/Users/yourname/Documents/GitHub/all-plugins</code>
+								</Text>
+							</li>
+							<li>
+								<Text style={{ fontSize: "12px" }}>
+									<strong>Enter the path below:</strong> Paste the full path to your local all-plugins repository.
+								</Text>
+							</li>
+						</ol>
+					</Card>
+
 					<Card style={{ backgroundColor: "#f0f8ff", padding: "1em", marginBottom: "1em" }}>
 						<Title style={{ marginBottom: "0.5em", fontSize: "16px" }}>
-							Step-by-Step Instructions:
+							Option 2: Command Line (For Advanced Users)
 						</Title>
 						<ol style={{ paddingLeft: "1.5em", lineHeight: "1.6" }}>
 							<li style={{ marginBottom: "0.5em" }}>

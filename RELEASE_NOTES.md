@@ -1,123 +1,39 @@
-# Release Notes - Wizard Hat Toolkit v1.5.0
+# Release Notes - Wizard Hat Toolkit v1.10.0
 
-## 🎉 New Feature: WooCommerce Blueprint Importer
+## 🎯 Improved Setup Experience for Beginners
 
-This major release introduces the **WooCommerce Blueprint Importer**, a powerful new feature that allows you to quickly configure WooCommerce stores with predefined setups.
+This release focuses on making the initial repository setup more accessible for users who are less familiar with command-line tools.
 
 ### ✨ What's New
 
-#### Blueprint Importer
-- **File Upload & Validation**: Upload and validate JSON blueprint files
-- **Import Preview**: Preview what will be imported before applying changes
-- **Conflict Resolution**: Handle conflicts with existing installations intelligently
-- **Settings Management**: Configure import preferences and conflict handling
-- **Progress Tracking**: Real-time import progress with detailed error reporting
-- **Sample Blueprint**: Included sample blueprint for testing and reference
+#### GitHub Desktop Integration (Recommended for Beginners)
+- **Beginner-Friendly Setup Option**: Added comprehensive GitHub Desktop instructions as the recommended setup method
+- **Step-by-Step Guide**: Detailed instructions for downloading and installing GitHub Desktop
+- **Account Connection**: Clear guidance for connecting to GitHub account
+- **Visual Path Finding**: Instructions using Finder to locate the repository path on your Mac
+- **No Command Line Required**: Complete setup process without needing Terminal, SSH keys, or authentication tokens
 
-#### Enhanced Features
-- **Plugin Management**: Improved plugin installation from multiple sources
-- **Theme Management**: Enhanced theme installation capabilities
-- **Site Configuration**: Streamlined country/locale switching
-- **Plugin Updates**: Better automated update handling
+#### Enhanced Repository Setup Dialog
+- **Two Clear Options**:
+  - Option 1: GitHub Desktop (Recommended for Beginners) - highlighted with green background
+  - Option 2: Command Line (For Advanced Users) - existing terminal instructions
+- **Better Organization**: Improved layout and visual hierarchy for easier comprehension
+- **Direct Links**: Clickable link to GitHub Desktop download page
+- **Example Paths**: Clear examples of what repository paths should look like
 
-### 🔧 Technical Improvements
+### 🎓 Who Benefits
 
-#### Architecture
-- **Modular Design**: Clean separation of concerns with reusable components
-- **TypeScript**: Fully typed implementation for better maintainability
-- **Error Handling**: Comprehensive error handling with user-friendly messages
-- **Security**: Validation and sanitization of imported data
-- **Performance**: Asynchronous processing with progress tracking
+This update particularly helps:
+- **New Users**: Those setting up the toolkit for the first time
+- **Non-Technical Users**: Support team members without command-line experience
+- **Quick Setup**: Anyone who wants a visual, GUI-based setup process
 
-#### Integration
-- **Local Addon API**: Seamless integration with Local's addon system
-- **WP-CLI Integration**: Leverages existing WP-CLI functionality
-- **GitHub Integration**: Uses existing GitHub token authentication
-- **Existing Features**: Builds upon current plugin/theme management
+### 🔧 Technical Details
 
-### 📋 Blueprint Format
+- Modified `src/components/RepositorySetup.tsx` to include GitHub Desktop instructions
+- Maintained backward compatibility with existing command-line setup workflow
+- No changes to core functionality - purely UX improvements for initial setup
 
-Blueprints are JSON files that define complete store configurations:
+### 📝 Previous Releases
 
-```json
-{
-  "version": "1.0",
-  "name": "Store Configuration",
-  "plugins": [...],
-  "themes": [...],
-  "settings": {
-    "woocommerce": {...},
-    "wordpress": {...},
-    "custom": {...}
-  }
-}
-```
-
-### 🚀 Getting Started
-
-1. **Install**: Download the latest version from the releases page
-2. **Enable**: Activate the addon in Local
-3. **Configure**: Set up your GitHub token for premium plugin access
-4. **Import**: Use the Blueprint Importer tab to upload and import blueprints
-
-### 📚 Documentation
-
-- **README**: Updated with comprehensive feature documentation
-- **Blueprint Guide**: Detailed guide in `BLUEPRINT_IMPORTER.md`
-- **Sample Blueprint**: Example configuration in `sample-blueprint.json`
-
-### 🔄 Migration
-
-This release is fully backward compatible. Existing installations will automatically gain access to the new Blueprint Importer feature.
-
-### 🐛 Bug Fixes
-
-- Fixed TypeScript compilation issues
-- Improved error handling in plugin installation
-- Enhanced UI component compatibility
-- Resolved validation edge cases
-
-### 📦 Installation
-
-#### Pre-built Package
-Download `wizard-hat-toolkit-1.5.0.tgz` from the releases page and install via "Install from disk" in Local.
-
-#### Build from Source
-```bash
-git clone https://github.com/WillBrubaker/wizard-hat-toolkit.git
-cd wizard-hat-toolkit
-npm install
-npm run build
-npm run dist
-```
-
-### 🎯 Use Cases
-
-- **Team Collaboration**: Share store configurations via blueprint files
-- **Development Workflows**: Quickly set up consistent development environments
-- **Testing**: Create reproducible test environments
-- **Onboarding**: Streamline new team member setup
-- **Client Handoffs**: Provide complete store configurations to clients
-
-### 🔮 Future Roadmap
-
-- Blueprint export functionality
-- Blueprint sharing via GitHub integration
-- Template library integration
-- Advanced conflict resolution options
-- Batch import capabilities
-
-### 💬 Feedback
-
-We'd love to hear your feedback on this new feature! Please:
-- Test the Blueprint Importer with your workflows
-- Report any issues or suggestions
-- Share your blueprint configurations with the community
-
-### 🙏 Acknowledgments
-
-This feature was inspired by the Studio application's blueprint functionality and brings similar capabilities to the Local environment.
-
----
-
-**Full Changelog**: https://github.com/WillBrubaker/wizard-hat-toolkit/compare/v1.4.0...v1.5.0
+For information about previous releases, see the [changelog](documentation/changelog.md).

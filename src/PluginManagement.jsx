@@ -28,6 +28,8 @@ export default class PluginManagement extends React.Component {
 			cloneError: null,
 			cloneHelpText: null,
 			repositoryConfigured: null, // null = checking, true = configured, false = not configured
+			lastUpdated: null,
+			refreshing: false,
 		};
 		this.hideInstructions = this.hideInstructions.bind(this);
 		this.hideError = this.hideError.bind(this);
@@ -35,6 +37,8 @@ export default class PluginManagement extends React.Component {
 		this.handlePluginSelectionChange =
 			this.handlePluginSelectionChange.bind(this);
 		this.installPlugins = this.installPlugins.bind(this);
+		this.handleForceRefresh = this.handleForceRefresh.bind(this);
+		this.formatDate = this.formatDate.bind(this);
 	}
 
 	componentDidMount() {
@@ -54,6 +58,14 @@ export default class PluginManagement extends React.Component {
 				// Trigger repository initialization
 				ipcRenderer.send("get-premium-plugin-selections");
 			}
+		});
+
+		// Get repository status
+		ipcRenderer.send("get-repository-status");
+		ipcRenderer.on("repository-status", (event, data) => {
+			this.setState({
+				lastUpdated: data.lastUpdated,
+			});
 		});
 
 		ipcRenderer.on("instructions", (event) => {
@@ -131,7 +143,13 @@ export default class PluginManagement extends React.Component {
 				cloneStatus: null,
 				cloneError: null,
 				cloneHelpText: null,
+				refreshing: false,
+				lastUpdated: data.lastUpdated,
 			});
+			// Refresh plugin selections
+			ipcRenderer.send("get-premium-plugin-selections");
+			// Refresh repository status
+			ipcRenderer.send("get-repository-status");
 		});
 
 		ipcRenderer.on("repository-clone-error", (event, data) => {
@@ -162,6 +180,7 @@ export default class PluginManagement extends React.Component {
 		ipcRenderer.removeAllListeners("repository-clone-error");
 		ipcRenderer.removeAllListeners("repository-configured-status");
 		ipcRenderer.removeAllListeners("repository-path-saved");
+		ipcRenderer.removeAllListeners("repository-status");
 	}
 
 	hideInstructions() {
@@ -293,6 +312,31 @@ export default class PluginManagement extends React.Component {
 		ipcRenderer.send("get-premium-plugin-selections");
 	}
 
+	handleForceRefresh() {
+		this.setState({ refreshing: true, cloneError: null });
+		ipcRenderer.send("force-refresh-repository");
+	}
+
+	formatDate(dateString) {
+		if (!dateString) return "Never";
+		try {
+			const date = new Date(dateString);
+			const now = new Date();
+			const diffMs = now.getTime() - date.getTime();
+			const diffMins = Math.floor(diffMs / 60000);
+			const diffHours = Math.floor(diffMs / 3600000);
+			const diffDays = Math.floor(diffMs / 86400000);
+
+			if (diffMins < 1) return "Just now";
+			if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+			if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+			if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+			return date.toLocaleString();
+		} catch (error) {
+			return "Unknown";
+		}
+	}
+
 	renderCloneStatus() {
 		if (this.state.cloneStatus) {
 			return (
@@ -349,10 +393,36 @@ export default class PluginManagement extends React.Component {
 			>
 				{this.renderCloneStatus()}
 				<Card style={{ zIndex: 9999, overflow: "visible" }}>
-					<Title>Plugin Installer</Title>
-					<Text>
-						Select and install WordPress plugins on this site.
-					</Text>
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1em" }}>
+						<div>
+							<Title>Plugin Installer</Title>
+							<Text>
+								Select and install WordPress plugins on this site.
+							</Text>
+							{this.state.lastUpdated && !this.state.cloneStatus && (
+								<Text fontSize="s" style={{ color: "#666", marginTop: "0.5em" }}>
+									Repository last updated: {this.formatDate(this.state.lastUpdated)}
+								</Text>
+							)}
+						</div>
+						{!this.state.cloneStatus && (
+							<Button
+								className="woo button"
+								onClick={this.handleForceRefresh}
+								disabled={this.state.refreshing}
+								style={{ fontSize: "12px", padding: "6px 12px" }}
+							>
+								{this.state.refreshing ? (
+									<span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+										<Spinner />
+										Refreshing...
+									</span>
+								) : (
+									"Refresh Repository"
+								)}
+							</Button>
+						)}
+					</div>
 					{!this.state.cloneStatus && (
 						<div style={{ margin: "1em 0" }}>
 							<div style={{ width: "90%", marginBottom: "1em" }}>
