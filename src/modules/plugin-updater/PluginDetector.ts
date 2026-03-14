@@ -55,8 +55,8 @@ export class PluginDetector {
             const allPlugins: PluginInfo[] = [];
             
             for (const plugin of plugins) {
-                // Skip inactive plugins and core WordPress plugins
-                if (plugin.status === 'inactive' || plugin.name === 'hello') {
+                // Skip only core WordPress stub plugins
+                if (plugin.name === 'hello') {
                     continue;
                 }
                 

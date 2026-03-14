@@ -263,7 +263,8 @@ export default function (context) {
 			}
 			
 			console.log('[Main] Creating detector and checker instances');
-			const detector = new PluginDetector(premiumPluginSelections);
+			const currentSelections = pluginManager.getPremiumPluginSelections();
+			const detector = new PluginDetector(currentSelections);
 			const checker = new UpdateChecker();
 			
 			// Detect all plugins

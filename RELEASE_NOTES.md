@@ -1,38 +1,22 @@
-# Release Notes - Wizard Hat Toolkit v1.10.0
+# Release Notes - Wizard Hat Toolkit v10.11.0
 
-## 🎯 Improved Setup Experience for Beginners
+## 🔧 Plugin Update Reliability Fixes
 
-This release focuses on making the initial repository setup more accessible for users who are less familiar with command-line tools.
+This release fixes three bugs in the plugin update facility that caused it to incorrectly report "All plugins are up to date" even when marketplace plugin updates were available.
 
-### ✨ What's New
+### ✨ What's Fixed
 
-#### GitHub Desktop Integration (Recommended for Beginners)
-- **Beginner-Friendly Setup Option**: Added comprehensive GitHub Desktop instructions as the recommended setup method
-- **Step-by-Step Guide**: Detailed instructions for downloading and installing GitHub Desktop
-- **Account Connection**: Clear guidance for connecting to GitHub account
-- **Visual Path Finding**: Instructions using Finder to locate the repository path on your Mac
-- **No Command Line Required**: Complete setup process without needing Terminal, SSH keys, or authentication tokens
+#### Marketplace Plugin Detection (Primary Fix)
+- **Root Cause Resolved**: The `PluginDetector` was receiving a stale, often-empty premium plugin list, causing every installed plugin to be misidentified as a WordPress.org plugin
+- **Fix**: The update checker now always fetches the current premium plugin list live from `PluginManager` at the time of the check, ensuring marketplace plugins are correctly identified and routed to the zip-based version check
 
-#### Enhanced Repository Setup Dialog
-- **Two Clear Options**:
-  - Option 1: GitHub Desktop (Recommended for Beginners) - highlighted with green background
-  - Option 2: Command Line (For Advanced Users) - existing terminal instructions
-- **Better Organization**: Improved layout and visual hierarchy for easier comprehension
-- **Direct Links**: Clickable link to GitHub Desktop download page
-- **Example Paths**: Clear examples of what repository paths should look like
+#### Inactive Plugin Inclusion
+- **Previously**: Inactive plugins were silently skipped during update checks, meaning inactive marketplace plugins with pending updates were never surfaced
+- **Fix**: All plugins are now included in update checks regardless of activation status; only the `hello` stub plugin continues to be excluded
 
-### 🎓 Who Benefits
-
-This update particularly helps:
-- **New Users**: Those setting up the toolkit for the first time
-- **Non-Technical Users**: Support team members without command-line experience
-- **Quick Setup**: Anyone who wants a visual, GUI-based setup process
-
-### 🔧 Technical Details
-
-- Modified `src/components/RepositorySetup.tsx` to include GitHub Desktop instructions
-- Maintained backward compatibility with existing command-line setup workflow
-- No changes to core functionality - purely UX improvements for initial setup
+#### Version String Matching
+- **Previously**: The regex used to extract version numbers from plugin file headers only matched purely numeric versions (e.g. `1.2.3`), silently failing for versions like `9.4.0-rc.1` or `2025.03`
+- **Fix**: The regex now captures any non-whitespace version string; the existing normalization logic already handles stripping suffixes for comparison
 
 ### 📝 Previous Releases
 

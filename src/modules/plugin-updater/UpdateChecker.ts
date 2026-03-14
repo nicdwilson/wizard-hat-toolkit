@@ -256,7 +256,7 @@ export class UpdateChecker {
                 const fileContent = fs.readFileSync(mainFilePath, 'utf8');
                 
                 // Extract version using regex (matches "Version: x.x.x" in plugin header)
-                const versionMatch = fileContent.match(/Version:\s*([0-9.]+)/i);
+                const versionMatch = fileContent.match(/Version:\s*([^\s\r\n]+)/i);
                 if (versionMatch && versionMatch[1]) {
                     return versionMatch[1].trim();
                 }
