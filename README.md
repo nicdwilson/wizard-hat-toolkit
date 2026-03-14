@@ -51,10 +51,6 @@ Install and manage WooCommerce plugins from various sources:
 - WordPress.org plugins
 - Premium WooCommerce marketplace plugins
 
-### Theme Management
-Install and manage WooCommerce themes from only one source:
-- WordPress.org themes
-
 ### Site Configuration
 Quickly switch between different country/locale configurations for WooCommerce settings.
 
